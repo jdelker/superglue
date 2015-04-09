@@ -19,6 +19,7 @@ my $epp = Net::EPP::Simple->new(
 	host	=> $creds{nominet}{host},
 	user	=> $creds{nominet}{user},
 	pass	=> $creds{nominet}{pass},
+	stdext	=> 1,
 	verify	=> 1,
 	ca_path	=> '/etc/ssl/certs',
 );
