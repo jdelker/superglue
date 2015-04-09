@@ -1,0 +1,29 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use lib 'lib';
+
+use Data::Dumper;
+use Net::EPP::Simple;
+
+use ipreg::Credentials;
+use ipreg::Zones;
+
+my $epp = Net::EPP::Simple->new(
+	host	=> $creds{nominet}{host},
+	user	=> $creds{nominet}{user},
+	pass	=> $creds{nominet}{pass},
+	verify	=> 1,
+	ca_path	=> '/etc/ssl/certs',
+);
+
+for my $z (sort keys %zone) {
+	# Only Nominet zones
+	next unless $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
+	my $info = $epp->domain_info($z, undef, undef);
+	die "reg-push-nominet: $z domain_info: $Net::EPP::Simple::Error\n"
+	    unless defined $info;
+	print Dumper($info);
+}
