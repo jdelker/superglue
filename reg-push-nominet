@@ -11,6 +11,10 @@ use Net::EPP::Simple;
 use ipreg::Credentials;
 use ipreg::Zones;
 
+sub eepp {
+	die "reg-push-nominet: @_: $Net::EPP::Simple::Error $Net::EPP::Simple::Message\n";
+}
+
 my $epp = Net::EPP::Simple->new(
 	host	=> $creds{nominet}{host},
 	user	=> $creds{nominet}{user},
@@ -18,12 +22,12 @@ my $epp = Net::EPP::Simple->new(
 	verify	=> 1,
 	ca_path	=> '/etc/ssl/certs',
 );
+eepp "login" unless defined $epp;
 
 for my $z (sort keys %zone) {
 	# Only Nominet zones
-	next unless $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
+	next unless $zone{$z}{mzs} and $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
 	my $info = $epp->domain_info($z, undef, undef);
-	die "reg-push-nominet: $z domain_info: $Net::EPP::Simple::Error\n"
-	    unless defined $info;
+	eepp "domain_info $z" unless defined $info;
 	print Dumper($info);
 }
