@@ -29,7 +29,7 @@ eepp "login" unless defined $epp;
 
 for my $z (sort keys %zone) {
 	# Only Nominet zones
-	next unless $zone{$z}{mzs} and $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
+	next unless $z eq 'cambridge.net.uk'; # $zone{$z}{mzs} and $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
 	my $info = $epp->domain_info($z, undef, undef);
 	eepp "domain_info $z" unless defined $info;
 	print Dumper($info);
