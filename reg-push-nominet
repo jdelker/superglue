@@ -27,10 +27,47 @@ my $epp = Net::EPP::Simple->new(
 );
 eepp "login" unless defined $epp;
 
+sub dig_ns {
+	my $z = shift;
+	my $ dig = qq{dig +short +norec ns $z};
+	my @ns = sort qx{$dig};
+	warn "reg-push-nominet: no result from $dig\n" unless @ns;
+	return @ns;
+}
+
+sub trim {
+	s{\.*\s*$}{.} for @_;
+	return @_;
+}
+
 for my $z (sort keys %zone) {
 	# Only Nominet zones
 	next unless $z eq 'cambridge.net.uk'; # $zone{$z}{mzs} and $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
 	my $info = $epp->domain_info($z, undef, undef);
 	eepp "domain_info $z" unless defined $info;
-	print Dumper($info);
+	my @apex = trim dig_ns $z;
+	my @deleg = trim @{$info->{ns}};
+	next unless @apex and @deleg;
+	my (%apex,%deleg);
+	@apex{@apex} = @apex;
+	@deleg{@deleg} = @deleg;
+	for my $ns (@apex) {
+		if (exists $apex{$ns} and exists $deleg{$ns}) {
+			delete $apex{$ns};
+			delete $deleg{$ns};
+			print "match $ns\n";
+		}
+	}
+	my @add = keys %apex;
+	my @rem = keys %deleg;
+	if (@add or @rem) {
+		print "reg-push-nominet: add ns $_ for $z\n" for @add;
+		print "reg-push-nominet: rem ns $_ for $z\n" for @rem;
+		my $update_info = { name => $z };
+		$update_info->{add}->{ns} = \@add if @add;
+		$update_info->{rem}->{ns} = \@rem if @rem;
+		$epp->update_domain($update_info) or
+		    eepp "domain_update $z";
+		print "reg-push-nominet: update $z: $Net::EPP::Simple::Error $Net::EPP::Simple::Message\n";
+	}
 }
