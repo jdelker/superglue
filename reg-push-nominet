@@ -42,7 +42,7 @@ sub trim {
 
 for my $z (sort keys %zone) {
 	# Only Nominet zones
-	next unless $z eq 'cambridge.net.uk'; # $zone{$z}{mzs} and $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
+	next unless $zone{$z}{mzs} and $z =~ m{\.uk$} and $z !~ m{\.ac\.uk$};
 	my $info = $epp->domain_info($z, undef, undef);
 	eepp "domain_info $z" unless defined $info;
 	my @apex = trim dig_ns $z;
@@ -55,7 +55,6 @@ for my $z (sort keys %zone) {
 		if (exists $apex{$ns} and exists $deleg{$ns}) {
 			delete $apex{$ns};
 			delete $deleg{$ns};
-			print "match $ns\n";
 		}
 	}
 	my @add = keys %apex;
