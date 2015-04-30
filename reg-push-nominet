@@ -29,7 +29,7 @@ eepp "login" unless defined $epp;
 
 sub dig_ns {
 	my $z = shift;
-	my $ dig = qq{dig +short +norec @::1 ns $z};
+	my $ dig = qq{dig +short +norec \@::1 ns $z};
 	my @ns = sort qx{$dig};
 	warn "reg-push-nominet: no result from $dig\n" unless @ns;
 	return @ns;
