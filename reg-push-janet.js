@@ -38,15 +38,14 @@ var debug = logfn('debug');
 
 function usage() {
     console.log(
-'usage: casperjs reg-push-janet.js --creds=<file> --domain=<domain> <ns>...\n
-	--creds=<file>		Path to credentials file
-	--domain=<domain>	The domain to update
-	<ns>...			The list of name server names
-
-The credentials file may contain blank lines or lines starting with a "#"
-to mark comments. The other lines have the form "<keyword><space><value>".
-There must be lines containing the keywords "user" and "pass".
-');
+'usage: casperjs reg-push-janet.js --creds=<file> --domain=<domain> <ns>...\n'+
+'	--creds=<file>		Path to credentials file\n'+
+'	--domain=<domain>	The domain to update\n'+
+'	<ns>...			The list of name server names\n'+
+'\n'+
+'The credentials file may contain blank lines or lines starting with a "#"\n'+
+'to mark comments. The other lines have the form "<keyword><space><value>".\n'+
+'There must be lines containing the keywords "user" and "pass".\n');
     phantom.exit(1);
 }
 
