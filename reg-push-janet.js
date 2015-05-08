@@ -26,7 +26,9 @@ var log_prefix = '[reg-push-janet] ';
 function fail(msg) {
     throw new Error(log_prefix + msg);
 }
-
+function notice(msg) {
+    casper.echo(log_prefix + msg);
+}
 function logfn(pri) {
     return function log(msg) {
 	casper.log(log_prefix + msg, pri);
@@ -125,18 +127,18 @@ casper.then(function find_domain() {
     }
 });
 
+var got_ns = [];
+
 casper.then(function open_domain() {
     info("Loaded domain details: " + this.getTitle());
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
     if (tbl.length % 4 !== 0 || tbl[1].text !== 'Name')
 	fail('Could not parse name server list for ' + domain);
-    var got_ns = [];
     for (var j = 0, i = 5; i < tbl.length; i += 4, j += 1)
 	got_ns[j] = tbl[i].text;
     got_ns.sort();
     var match = true;
     for (var i = 0; i < got_ns.length; i++) {
-	info(domain + ' NS ' + got_ns[i]);
 	if (got_ns[i] !== set_ns[i])
 	    match = false;
     }
@@ -187,7 +189,13 @@ function set_form_time(form, time, today) {
     var dd = today ? 'today' : 'tomorrow';
     form['#MainContent_ModificationTime'] = tv;
     form['#MainContent_ModificationDateCalendar'] = d;
-    info('Modification scheduled at '+t+' '+d+' '+dd+' for '+domain);
+    notice('Modification scheduled at '+t+' '+d+' '+dd+' for '+domain);
+    notice('Old NS RRset');
+    for (var i = 0; i < got_ns.length; i++)
+	notice(domain + ' NS ' + got_ns[i]);
+    notice('New NS RRset');
+    for (var i = 0; i < set_ns.length; i++)
+	notice(domain + ' NS ' + set_ns[i]);
 }
 
 casper.waitForSelector('#MainContent_SecAddress'+(set_ns.length-2),
@@ -212,15 +220,23 @@ function set_nameservers() {
 	set_form_time(form, times[0], today = false);
     }
     this.fillSelectors('form', form);
-    this.click('#MainContent_ConfirmRequest');
+//    this.click('#MainContent_ConfirmRequest');
 },
 function onTimeout() {
-    fail('timed out');
+    fail('Timeout while filling modification form for ' + domain);
 });
 
-casper.then(function () {
-    info("Loaded page: " + this.getTitle());
+casper.waitForUrl(/ViewPendingTickets/,
+function change_submitted() {
+    if (this.exists('#MainContent_SubmissionText')) {
+	notice(this.getElementInfo('#MainContent_SubmissionText').text);
+	this.exit(0);
+    }
     this.echo(this.page.plainText);
+    fail('Unexpected response after submbitting modification for ' + domain);
+},
+function onTimeout() {
+    fail('Timeout after submitting modification for ' + domain);
 });
 
 casper.run();
