@@ -93,7 +93,25 @@ casper.then(function login() {
 
 casper.then(function greeting() {
     info("Loaded greeting page: " + this.getTitle());
-    this.click('#commonActionsMenu_ListDomains');
+    this.click('#commonActionsMenu_ListPendingTickets');
+});
+
+casper.then(function view_tickets() {
+    info("Loaded tickets: " + this.getTitle());
+    this.fillSelectors('form', {
+	'#MainContent_DomainFilterInput': domain
+    });
+    this.click('#MainContent_FilterSubmit');
+});
+
+casper.then(function find_tickets() {
+    info("Loaded filtered tickets: " + this.getTitle());
+    if (this.exists('#MainContent_TicketListView_CurrentPageLabel')) {
+	info('Changes pending for ' + domain);
+	this.exit(0);
+    } else {
+	this.click('#commonActionsMenu_ListDomains');
+    }
 });
 
 casper.then(function choose_domain() {
