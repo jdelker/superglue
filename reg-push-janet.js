@@ -115,7 +115,7 @@ casper.then(function find_domain() {
 	    var a = document.querySelector(sel);
 	    var tr = a.parentNode.parentNode;
 	    var td = tr.childNodes[3];
-	    return td.innerHTML;
+	    return td.innerHTML.toLowerCase();
 	}, sel);
 	info('Found domain: ' + res);
 	if (res === domain) {
@@ -141,10 +141,10 @@ casper.then(function open_domain() {
 	    match = false;
     }
     if (match && got_ns.length === set_ns.length) {
-	info('No need to change delegation of ' + domain)
+	info('No need to modify delegation of ' + domain)
 	this.exit(0);
     } else {
-	info('Mismatched delegation of ' + domain)
+	info('Modifying delegation of ' + domain)
 	this.click('#MainContent_ModifyDomainButton');
     }
 });
@@ -165,12 +165,56 @@ casper.then(function set_number_of_secondaries() {
     var form = {};
     form[nsec_id] = set_ns.length - 1;
     if (form[nsec_id] !== nsec)
-	this.fillSelectors('form', f);
+	this.fillSelectors('form', form);
 });
 
-casper.waitForSelector('#MainContent_SecAddress'+(set_ns.length-2), function () {
-    report_nsec();
-}, function onTimeout() {
+function twoDigit(n) {
+    if (n < 10) return '0' + n;
+    else return '' + n;
+}
+function HH_MM(d) {
+    return twoDigit(d.getHours())+':'+twoDigit(d.getMinutes());
+}
+function dd_mm_yyyy(d) {
+    return twoDigit(d.getDate()) + '/' +
+	   twoDigit(d.getMonth()+1) + '/' + d.getFullYear();
+}
+function set_form_time(form, time, today) {
+    var t = time.text;
+    var tv = time.attributes.value;
+    var d = dd_mm_yyyy(new Date(Date.now() +
+				(today ? 0 : 24 * 60 * 60 * 1000)));
+    var dd = today ? 'today' : 'tomorrow';
+    form['#MainContent_ModificationTime'] = tv;
+    form['#MainContent_ModificationDateCalendar'] = d;
+    info('Modification scheduled at '+t+' '+d+' '+dd+' for '+domain);
+}
+
+casper.waitForSelector('#MainContent_SecAddress'+(set_ns.length-2),
+function set_nameservers() {
+    var n = set_ns.length;
+    if (report_nsec() !== ''+(n-1))
+	fail('Unable to resize nameserver form for ' + domain);
+    var form = {}
+    form['#MainContent_PrimeNameserverName'] = set_ns[n-1];
+    for (var i = 0; i < n-1; i++)
+	form['#MainContent_SecAddress'+i] = set_ns[i];
+    var now = HH_MM(new Date(Date.now() + 5 * 60 * 1000));
+    var today = false;
+    var times = this.getElementsInfo('#MainContent_ModificationTime option');
+    for (var i = 0; i < times.length; i++) {
+	if (now < times[i].text) {
+	    set_form_time(form, times[i], today = true);
+	    break;
+	}
+    }
+    if (!today) {
+	set_form_time(form, times[0], today = false);
+    }
+    this.fillSelectors('form', form);
+    this.click('#MainContent_ConfirmRequest');
+},
+function onTimeout() {
     fail('timed out');
 });
 
