@@ -80,9 +80,19 @@ casper.then(function open_domain() {
 	var sel = '#MainContent_DomainListView_ViewDomainNumber'+i+'_'+i;
 	if (!this.exists(sel))
 	    fail('Could not find domain: '+domain);
-
-    });
-    this.click('#MainContent_btnFilter');
+	// I suspect this might be a bit shaky...
+	var res = this.evaluate(function find_domain(sel) {
+	    var a = document.querySelector(sel);
+	    var tr = a.parentNode.parentNode;
+	    var td = tr.childNodes[3];
+	    return td.innerHTML;
+	}, sel);
+	info('Found domain: ' + res);
+	if (res === domain) {
+	    this.click(sel);
+	    break;
+	}
+    }
 });
 
 casper.then(function () {
