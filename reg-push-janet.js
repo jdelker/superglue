@@ -82,7 +82,7 @@ casper.start('https://naming.ja.net/dns');
 
 casper.then(function login() {
     info("Loaded login page: " + this.getTitle());
-    this.fillSelectors('form#form1', {
+    this.fillSelectors('form', {
 	'#MainContent_Login1_UserName': creds.user,
 	'#MainContent_Login1_Password': creds.pass,
     });
@@ -96,7 +96,7 @@ casper.then(function greeting() {
 
 casper.then(function choose_domain() {
     info("Loaded domain list: " + this.getTitle());
-    this.fillSelectors('form#form1', {
+    this.fillSelectors('form', {
 	'#MainContent_tbDomainNames': domain
     });
     this.click('#MainContent_btnFilter');
@@ -130,12 +130,48 @@ casper.then(function open_domain() {
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
     if (tbl.length % 4 !== 0 || tbl[1].text !== 'Name')
 	fail('Could not parse name server list for ' + domain);
-    var ns = [];
+    var got_ns = [];
     for (var j = 0, i = 5; i < tbl.length; i += 4, j += 1)
-	ns[j] = tbl[i].text;
-    ns.sort();
-    for (var i = 0; i < ns.length; i++)
-	info(domain + ' NS ' + ns[i]);
+	got_ns[j] = tbl[i].text;
+    got_ns.sort();
+    var match = true;
+    for (var i = 0; i < got_ns.length; i++) {
+	info(domain + ' NS ' + got_ns[i]);
+	if (got_ns[i] !== set_ns[i])
+	    match = false;
+    }
+    if (match && got_ns.length === set_ns.length) {
+	info('No need to change delegation of ' + domain)
+	this.exit(0);
+    } else {
+	info('Mismatched delegation of ' + domain)
+	this.click('#MainContent_ModifyDomainButton');
+    }
+});
+
+var nsec_id = '#MainContent_NumberOfSecServers';
+function get_nsec() {
+    return casper.getElementInfo(nsec_id + ' option[selected]').text;
+}
+function report_nsec() {
+    var nsec = get_nsec();
+    info('Number of secondaries for ' + domain + ' is ' + nsec);
+    return nsec;
+}
+
+casper.then(function set_number_of_secondaries() {
+    info("Loaded page: " + this.getTitle());
+    var nsec = report_nsec();
+    var form = {};
+    form[nsec_id] = set_ns.length - 1;
+    if (form[nsec_id] !== nsec)
+	this.fillSelectors('form', f);
+});
+
+casper.waitForSelector('#MainContent_SecAddress'+(set_ns.length-2), function () {
+    report_nsec();
+}, function onTimeout() {
+    fail('timed out');
 });
 
 casper.then(function () {
