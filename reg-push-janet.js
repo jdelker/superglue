@@ -14,19 +14,14 @@
 
 "use strict";
 
-// TODO: get these from the command line
-
-var creds_file = '/home/ipreg/DNS/conf/creds/janet';
-var log_prefix = '[reg-push-janet] ';
-
-var domain = 'cudos.ac.uk';
-
 var casper = require('casper').create({
     verbose: true,
 });
 
 var fs = require('fs');
 var utils = require('utils');
+
+var log_prefix = '[reg-push-janet] ';
 
 function fail(msg) {
     throw new Error(log_prefix + msg);
@@ -40,6 +35,30 @@ function logfn(pri) {
 var error = logfn('error');
 var info  = logfn('info');
 var debug = logfn('debug');
+
+function usage() {
+    console.log(
+'usage: casperjs reg-push-janet.js --creds=<file> --domain=<domain> <ns>...\n
+	--creds=<file>		Path to credentials file
+	--domain=<domain>	The domain to update
+	<ns>...			The list of name server names
+
+The credentials file may contain blank lines or lines starting with a "#"
+to mark comments. The other lines have the form "<keyword><space><value>".
+There must be lines containing the keywords "user" and "pass".
+');
+    phantom.exit(1);
+}
+
+var creds_file = casper.cli.options.creds;
+if (!creds_file) usage();
+
+var domain = casper.cli.options.domain;
+if (!domain) usage();
+
+var set_ns = casper.cli.args;
+if (!set_ns.length) usage();
+set_ns = set_ns.slice(0).sort();
 
 var creds = (function load_creds() {
     var c = {};
