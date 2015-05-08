@@ -89,7 +89,7 @@ casper.then(function find_domain() {
     for (var i = 0; ; i++) {
 	var sel = '#MainContent_DomainListView_ViewDomainNumber'+i+'_'+i;
 	if (!this.exists(sel))
-	    fail('Could not find domain: '+domain);
+	    fail('Could not find domain: ' + domain);
 	// Unfortunately there isn't a sensible selector for each row of the
 	// search results table, so we have to dig around for the cousin node
 	// which might contain the name of the domain we are looking for.
@@ -109,10 +109,15 @@ casper.then(function find_domain() {
 
 casper.then(function open_domain() {
     info("Loaded domain details: " + this.getTitle());
-    var tbl = this.getElemensInfo('#MainContent_nameServersTab > td');
-    for (var i = 0; i < tbl.length; i++) {
-	info(tbl[i].text);
-    }
+    var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
+    if (tbl.length % 4 !== 0 || tbl[1].text !== 'Name')
+	fail('Could not parse name server list for ' + domain);
+    var ns = [];
+    for (var j = 0, i = 5; i < tbl.length; i += 4, j += 1)
+	ns[j] = tbl[i].text;
+    ns.sort();
+    for (var i = 0; i < ns.length; i++)
+	info(domain + ' NS ' + ns[i]);
 });
 
 casper.then(function () {
