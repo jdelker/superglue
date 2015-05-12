@@ -21,7 +21,7 @@ var casper = require('casper').create({
 var fs = require('fs');
 var utils = require('utils');
 
-var log_prefix = '[reg-push-janet] ';
+var log_prefix = 'reg-push-janet: ';
 
 function fail(msg) {
     throw new Error(log_prefix + msg);
@@ -238,7 +238,7 @@ function set_nameservers() {
 	set_form_time(form, times[0], today = false);
     }
     this.fillSelectors('form', form);
-//    this.click('#MainContent_ConfirmRequest');
+    this.click('#MainContent_ConfirmRequest');
 },
 function onTimeout() {
     fail('Timeout while filling modification form for ' + domain);
@@ -249,9 +249,10 @@ function change_submitted() {
     if (this.exists('#MainContent_SubmissionText')) {
 	notice(this.getElementInfo('#MainContent_SubmissionText').text);
 	this.exit(0);
+    } else {
+	this.echo(this.page.plainText);
+	fail('Unexpected response after submbitting modification for ' + domain);
     }
-    this.echo(this.page.plainText);
-    fail('Unexpected response after submbitting modification for ' + domain);
 },
 function onTimeout() {
     fail('Timeout after submitting modification for ' + domain);
