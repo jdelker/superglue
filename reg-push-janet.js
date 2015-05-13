@@ -137,7 +137,7 @@ var delegation = (function load_delegation() {
 	    continue;
 	}
     }
-    var ns = d.NS.keys();
+    var ns = Object.keys(d.NS);
     d.count = ns.length;
     if (!(d.count > 0))
 	fail(file+': no delegation records found');
