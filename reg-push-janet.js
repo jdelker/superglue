@@ -40,40 +40,130 @@ var debug = logfn('debug');
 
 function usage() {
     console.log(
-'usage: casperjs reg-push-janet.js [--ignore-tickets] [--ignore-match]\n'+
-'                                   --creds=<file> --domain=<domain> <ns>...\n'+
+'usage: casperjs [--log-level=<level>] reg-push-janet.js\n'+
+'                [--ignore-tickets] [--ignore-match]\n'+
+'                 --creds=<file> --domain=<domain> --delegation=<file>\n'+
+'	--log-leve=<level>	Set "info" or "debug" mode\n'+
 '	--ignore-tickets	Update even if the domain has pending tickets\n'+
 '	--ignore-match		Update even if its delegation matches\n'+
 '	--creds=<file>		Path to credentials file\n'+
 '	--domain=<domain>	The domain to update\n'+
-'	<ns>...			The list of name server names\n'+
+'	--delegation=<file>	File containing delegation records\n'+
 '\n'+
 'The credentials file may contain blank lines or lines starting with a "#"\n'+
 'to mark comments. The other lines have the form "<keyword><space><value>".\n'+
-'There must be lines containing the keywords "user" and "pass".\n');
+'There must be lines containing the keywords "user" and "pass".\n'+
+'\n'+
+'The delegation file is in standard DNS Master File format with the origin\n'+
+'set to the domain being updated. It must contain NS records for the zone;\n'+
+'it may contain DS records and/or glue address records. TTLs are ignored.\n'+
+'$ directives, \\ escapes, "strings", and () continuations are not supported.\n'
+);
     phantom.exit(1);
 }
 
-var creds_file = casper.cli.options.creds;
-if (!creds_file) usage();
+var re_dname = /^(?:[a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 
 var domain = casper.cli.options.domain;
-if (!domain) usage();
+if (!domain || !domain.match(re_dname)) usage();
 
-var set_ns = casper.cli.args;
-if (!set_ns.length) usage();
-set_ns = set_ns.slice(0).sort();
+var delegation = (function load_delegation() {
+    var d = { NS: {}, DS: '', addr: {} };
+    var owner = domain;
+    var file = casper.cli.options.delegation;
+    if (!file) usage();
+    var stream = fs.open(file, 'r');
+    for (var n = 1; !stream.atEnd(); n++) {
+	function syntax(msg) {
+	    fail(file+':'+n+': '+msg);
+	}
+	function parse_dname(n) {
+	    if (n === '@')
+		return domain;
+	    if (n.match(/\.$/))
+		n = n.replace(/\.$/, '');
+	    else
+		n = n+'.'+domain;
+	    if (n.match(re_dname))
+		return n;
+	    syntax('bad domain name '+n);
+	}
+	var line = stream.readLine();
+	line = line.replace(/;.*/, '');
+	if (line.match(/^\s*$/))
+	    continue;
+	var match = line.match(/^(\S*)\s+(?:(?:IN|\d+)\s+)*(NS|DS|A|AAAA)\s+(.*)$/);
+	if (!match)
+	    syntax('could not parse line '+line);
+	var rdata = match[3];
+	var type = match[2];
+	if (match[1] !== '')
+	    owner = parse_dname(match[1]);
+	switch (type) {
+	case 'NS':
+	    if (owner !== domain)
+		syntax('NS RRs must be owned by '+domain);
+	    rdata = parse_dname(rdata);
+	    d.NS[rdata] = true;
+	    debug(domain+'. NS '+rdata);
+	    continue;
+	case 'DS':
+	    if (owner !== domain)
+		syntax('DS RRs must be owned by '+domain);
+	    // TODO: sanity check rdata
+	    var ds = owner+'. IN DS '+rdata;
+	    d.DS = d.DS + ds + '\n';
+	    debug(ds);
+	    continue;
+	case 'A':
+	    if (owner.substr(-domain.length) !== domain)
+		syntax('glue A records must be subdomains of '+domain);
+	    if (!rdata.match(/^\d+\.\d+\.\d+\.\d+$/))
+		syntax('bad IPv4 address: '+rdata);
+	    if (!(owner in d.addr))
+		d.addr[owner] = [];
+	    d.addr[owner].push(rdata);
+	    debug(owner+'. A '+rdata);
+	    continue;
+	case 'AAAA':
+	    if (owner.substr(-domain.length) !== domain)
+		syntax('glue AAAA records must be subdomains of '+domain);
+	    if (!rdata.match(/^[0-9a-f:]+$/))
+		syntax('bad IPv6 address: '+rdata);
+	    if (!(owner in d.addr))
+		d.addr[owner] = [];
+	    d.addr[owner].push(rdata);
+	    debug(owner+'. AAAA '+rdata);
+	    continue;
+	}
+    }
+    var ns = d.NS.keys();
+    d.count = ns.length;
+    if (!(d > 0))
+	fail(file+': no delegation records found');
+    for (var s in d.addr) {
+	if (!d.NS[s])
+	    fail(file+': glue records for nonexistent NS '+s);
+	d.addr[s].sort();
+	d.count += d.addr[s].length - 1;
+    }
+    debug('name server count '+d.count);
+    d.NS = ns.sort();
+    return d;
+})();
 
 var creds = (function load_creds() {
     var c = {};
-    var stream = fs.open(creds_file, 'r');
-    while(!stream.atEnd()) {
+    var file = casper.cli.options.creds;
+    if (!file) usage();
+    var stream = fs.open(file, 'r');
+    for (var n = 1; !stream.atEnd(); n++) {
 	var line = stream.readLine();
 	if (line.match(/^\s*#|^\s*$/))
 	    continue;
 	var match = line.match(/^(\S+)\s+(.*)$/)
 	if (!match)
-	    fail('read '+creds_file+': could not parse line: '+line);
+	    fail('read '+file+':'+n+': could not parse line: '+line);
 	c[match[1]] = match[2];
 	if (match[1] === 'pass')
 	    debug('pass ********');
@@ -163,7 +253,7 @@ casper.then(function open_domain() {
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
     for (var j = 0, i = 0; i < tbl.length; i++) {
 	var td = tbl[i].text;
-	if (td.match(/^([a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/)) {
+	if (td.match(re_dname))
 	    got_ns[j++] = td;
 	}
     }
