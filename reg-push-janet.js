@@ -150,10 +150,12 @@ var got_ns = [];
 casper.then(function open_domain() {
     info("Loaded domain details: " + this.getTitle());
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
-    if (tbl.length % 4 !== 0 || tbl[1].text !== 'Name')
-	fail('Could not parse name server list for ' + domain);
-    for (var j = 0, i = 5; i < tbl.length; i += 4, j += 1)
-	got_ns[j] = tbl[i].text;
+    for (var j = 0, i = 0; i < tbl.length; i++) {
+	var td = tbl[i].text;
+	if (td.match(/^([a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/)) {
+	    got_ns[j++] = td;
+	}
+    }
     got_ns.sort();
     var match = true;
     for (var i = 0; i < got_ns.length; i++) {
