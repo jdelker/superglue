@@ -40,7 +40,10 @@ var debug = logfn('debug');
 
 function usage() {
     console.log(
-'usage: casperjs reg-push-janet.js --creds=<file> --domain=<domain> <ns>...\n'+
+'usage: casperjs reg-push-janet.js [--ignore-tickets] [--ignore-match]\n'+
+'                                   --creds=<file> --domain=<domain> <ns>...\n'+
+'	--ignore-tickets	Update even if the domain has pending tickets\n'+
+'	--ignore-match		Update even if its delegation matches\n'+
 '	--creds=<file>		Path to credentials file\n'+
 '	--domain=<domain>	The domain to update\n'+
 '	<ns>...			The list of name server names\n'+
@@ -108,12 +111,18 @@ casper.then(function view_tickets() {
 
 casper.then(function find_tickets() {
     info("Loaded filtered tickets: " + this.getTitle());
+    var clicky = true;
     if (this.exists('#MainContent_TicketListView_CurrentPageLabel')) {
 	info('Changes pending for ' + domain);
-	this.exit(0);
-    } else {
-	this.click('#commonActionsMenu_ListDomains');
+	if (casper.cli.options['ignore-tickets'])
+	    info('Ignoring tickets');
+	else
+	    clicky = false
     }
+    if (clicky)
+	this.click('#commonActionsMenu_ListDomains');
+    else
+	this.exit(0);
 });
 
 casper.then(function choose_domain() {
