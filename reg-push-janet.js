@@ -92,6 +92,8 @@ casper.then(function login() {
 });
 
 casper.then(function greeting() {
+    if (this.getTitle() !== 'Home Page')
+	fail('Login failed')
     info("Loaded greeting page: " + this.getTitle());
     this.click('#commonActionsMenu_ListPendingTickets');
 });
