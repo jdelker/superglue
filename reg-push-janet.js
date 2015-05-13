@@ -74,10 +74,10 @@ var delegation = (function load_delegation() {
     if (!file) usage();
     var stream = fs.open(file, 'r');
     for (var n = 1; !stream.atEnd(); n++) {
-	function syntax(msg) {
+	var syntax = function syntax(msg) {
 	    fail(file+':'+n+': '+msg);
 	}
-	function parse_dname(n) {
+	var parse_dname = function parse_dname(n) {
 	    if (n === '@')
 		return domain;
 	    if (n.match(/\.$/))
@@ -105,7 +105,7 @@ var delegation = (function load_delegation() {
 		syntax('NS RRs must be owned by '+domain);
 	    rdata = parse_dname(rdata);
 	    d.NS[rdata] = true;
-	    debug(domain+'. NS '+rdata);
+	    debug(domain+' NS '+rdata);
 	    continue;
 	case 'DS':
 	    if (owner !== domain)
@@ -123,7 +123,7 @@ var delegation = (function load_delegation() {
 	    if (!(owner in d.addr))
 		d.addr[owner] = [];
 	    d.addr[owner].push(rdata);
-	    debug(owner+'. A '+rdata);
+	    debug(owner+' A '+rdata);
 	    continue;
 	case 'AAAA':
 	    if (owner.substr(-domain.length) !== domain)
@@ -133,7 +133,7 @@ var delegation = (function load_delegation() {
 	    if (!(owner in d.addr))
 		d.addr[owner] = [];
 	    d.addr[owner].push(rdata);
-	    debug(owner+'. AAAA '+rdata);
+	    debug(owner+' AAAA '+rdata);
 	    continue;
 	}
     }
