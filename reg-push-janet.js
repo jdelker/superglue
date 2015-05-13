@@ -139,7 +139,7 @@ var delegation = (function load_delegation() {
     }
     var ns = d.NS.keys();
     d.count = ns.length;
-    if (!(d > 0))
+    if (!(d.count > 0))
 	fail(file+': no delegation records found');
     for (var s in d.addr) {
 	if (!d.NS[s])
@@ -253,7 +253,7 @@ casper.then(function open_domain() {
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
     for (var j = 0, i = 0; i < tbl.length; i++) {
 	var td = tbl[i].text;
-	if (td.match(re_dname))
+	if (td.match(re_dname)) {
 	    got_ns[j++] = td;
 	}
     }
