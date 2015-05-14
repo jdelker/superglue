@@ -66,6 +66,8 @@ function usage() {
 }
 
 var re_dname = /^(?:[a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/;
+var re_ipv6 = /^(?:[0-9a-f]{1,4}:)+(?::|(?::[0-9a-f]{1,4})+|[0-9a-f]{1,4})$/;
+var re_ipv4 = /^\d+\.\d+\.\d+\.\d+$/;
 
 var domain = casper.cli.options.domain;
 if (!domain || !domain.match(re_dname)) usage();
@@ -121,7 +123,7 @@ var delegation = (function load_delegation() {
 	case 'A':
 	    if (owner.substr(-domain.length) !== domain)
 		syntax('glue A records must be subdomains of '+domain);
-	    if (!rdata.match(/^\d+\.\d+\.\d+\.\d+$/))
+	    if (!rdata.match(re_ipv4))
 		syntax('bad IPv4 address: '+rdata);
 	    if (!(owner in d.addr))
 		d.addr[owner] = [];
@@ -131,7 +133,7 @@ var delegation = (function load_delegation() {
 	case 'AAAA':
 	    if (owner.substr(-domain.length) !== domain)
 		syntax('glue AAAA records must be subdomains of '+domain);
-	    if (!rdata.match(/^[0-9a-f:]+$/))
+	    if (!rdata.match(re_ipv6))
 		syntax('bad IPv6 address: '+rdata);
 	    if (!(owner in d.addr))
 		d.addr[owner] = [];
