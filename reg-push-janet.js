@@ -69,6 +69,14 @@ var re_dname = /^(?:[a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 var re_ipv6 = /^(?:[0-9a-f]{1,4}:)+(?::|(?::[0-9a-f]{1,4})+|[0-9a-f]{1,4})$/;
 var re_ipv4 = /^\d+\.\d+\.\d+\.\d+$/;
 
+function ns_cmp(a,b) {
+    if (a.name < b.name) return -1;
+    if (a.name > b.name) return +1;
+    if (a.addr < b.addr) return -1;
+    if (a.addr > b.addr) return +1;
+    return 0;
+}
+
 var domain = casper.cli.options.domain;
 if (!domain || !domain.match(re_dname)) usage();
 
@@ -149,7 +157,6 @@ var delegation = (function load_delegation() {
     for (var s in d.addr) {
 	if (!d.NS[s])
 	    fail(file+': glue records for nonexistent NS '+s);
-	d.addr[s].sort();
     }
     for (var i = 0; i < ns.length; i++) {
 	if (ns[i].substr(-domain.length) === domain) {
@@ -167,7 +174,7 @@ var delegation = (function load_delegation() {
 	}
     }
     debug('name server count '+nsa.length);
-    d.NS = nsa.sort();
+    d.NS = nsa.sort(ns_cmp);
     d.addr = undefined;
     return d;
 })();
@@ -271,6 +278,7 @@ var got_ns = [];
 casper.then(function open_domain() {
     info("Loaded domain details: " + this.getTitle());
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
+    var ns = [];
     for (var j = 0, i = 0; i < tbl.length; i++) {
 	var td = tbl[i].text;
 	if (td.match(re_dname)) {
