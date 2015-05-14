@@ -123,9 +123,9 @@ var delegation = (function load_delegation() {
 	case 'DS':
 	    if (owner !== domain)
 		syntax('DS RRs must be owned by '+domain);
-	    // TODO: sanity check rdata
+	    // TODO: sanity check rdata?
 	    var ds = owner+'. IN DS '+rdata;
-	    d.DS = d.DS + ds + '\n';
+	    d.DS = d.DS + ds;
 	    debug('parse '+ds);
 	    continue;
 	case 'A':
@@ -162,20 +162,19 @@ var delegation = (function load_delegation() {
 	if (ns[i].substr(-domain.length) === domain) {
 	    var a = d.addr[ns[i]];
 	    if (!a) fail(file+': glue records missing for NS '+ns[i]);
-	    for (var j = 0; j < a.length; j++) {
+	    for (var j = 0; j < a.length; j++)
 		nsa.push({ name: ns[i], addr: a[j] });
-		debug(domain+' ns '+ns[i]+' glue '+a[j]);
-	    }
 	} else {
 	    if (d.addr[ns[i]])
 		fail(file+': spurious glue records for NS '+ns[i]);
 	    nsa.push({ name: ns[i], addr: '' });
-	    debug(domain+' ns '+ns[i]);
 	}
     }
-    debug('name server count '+nsa.length);
     d.NS = nsa.sort(ns_cmp);
     d.addr = undefined;
+    debug('name server count '+d.NS.length);
+    for (var i = 0; i < d.NS.length; i++)
+	debug(domain+' ns '+d.NS[i].name+' glue '+d.NS[i].addr);
     return d;
 })();
 
@@ -273,29 +272,57 @@ casper.then(function find_domain() {
     }
 });
 
-var got_ns = [];
-
 casper.then(function open_domain() {
     info("Loaded domain details: " + this.getTitle());
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
-    var ns = [];
+    var cns = [];
     for (var j = 0, i = 0; i < tbl.length; i++) {
 	var td = tbl[i].text;
-	if (td.match(re_dname)) {
-	    got_ns[j++] = td;
+	if (td.match(re_ipv6) || td.match(re_ipv4)) {
+	    cns[j-1].addr = td;
+	} else if (td.match(re_dname)) {
+	    cns[j++] = { name: td, addr: '' };
 	}
     }
-    got_ns.sort();
-    var match = true;
-    for (var i = 0; i < got_ns.length; i++) {
-	if (got_ns[i] !== set_ns[i])
-	    match = false;
+    cns.sort(ns_cmp);
+    for (var i = 0; i < cns.length; i++)
+	debug(domain+' ns '+cns[i].name+' glue '+cns[i].addr);
+    var ds = '';
+    if (this.exists('#MainContent_DsKeysDisplay')) {
+	ds = this.getElementInfo('#MainContent_DsKeysDisplay').text;
+	debug(ds);
+    } else {
+	debug('no DS records');
     }
-    if (match && got_ns.length === set_ns.length) {
+    var dns = delegation.NS;
+    var match = !casper.cli.options['ignore-match'];
+    if (cns.length !== dns.length && dns.length !== 0)
+	match = false;
+    else
+	for (var i = 0; i < dns.length; i++)
+	    if (ns_cmp(cns[i], dns[i]))
+		match = false;
+    if (ds !== delegation.DS && delegation.DS !== '')
+	match = false;
+    if (match) {
 	info('No need to modify delegation of ' + domain)
 	this.exit(0);
     } else {
 	info('Modifying delegation of ' + domain)
+	if (dns.length) {
+	    notice('Old NS records');
+	    for (var i = 0; i < cns.length; i++)
+		notice(domain+' ns '+cns[i].name+' glue '+cns[i].addr);
+	    notice('New NS records');
+	    for (var i = 0; i < dns.length; i++)
+		notice(domain+' ns '+dns[i].name+' glue '+dns[i].addr);
+	}
+	if (delegation.DS !== '') {
+	    notice('Old DS records');
+	    notice(ds);
+	    notice('New DS records');
+	    notice(delegation.DS);
+	}
 	this.click('#MainContent_ModifyDomainButton');
     }
 });
@@ -314,7 +341,7 @@ casper.then(function set_number_of_secondaries() {
     info("Loaded page: " + this.getTitle());
     var nsec = report_nsec();
     var form = {};
-    form[nsec_id] = set_ns.length - 1;
+    form[nsec_id] = d.NS.length - 1;
     if (form[nsec_id] !== nsec)
 	this.fillSelectors('form', form);
 });
@@ -339,15 +366,9 @@ function set_form_time(form, time, today) {
     form['#MainContent_ModificationTime'] = tv;
     form['#MainContent_ModificationDateCalendar'] = d;
     notice('Modification scheduled at '+t+' '+d+' '+dd+' for '+domain);
-    notice('Old NS RRset');
-    for (var i = 0; i < got_ns.length; i++)
-	notice(domain + ' NS ' + got_ns[i]);
-    notice('New NS RRset');
-    for (var i = 0; i < set_ns.length; i++)
-	notice(domain + ' NS ' + set_ns[i]);
 }
 
-casper.waitForSelector('#MainContent_SecAddress'+(set_ns.length-2),
+casper.waitForSelector('#MainContent_SecAddress'+(delegation.NS.length-2),
 function set_nameservers() {
     var n = set_ns.length;
     if (report_nsec() !== ''+(n-1))
