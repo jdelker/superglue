@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -e
+
+zone=$1
+zone=$(echo $zone | sed 's/\.*$/./')
+
+# assume name server names do not match zone apex
+gluere=$(echo $zone | sed 's/^/./;s/\./\\./g;s/$/$/')
+
+dig='dig @::1 +norec'
+ans='+noall +answer'
+
+$dig $ans @::1 $zone NS | sort
+
+# glue lookups are recursive because we sometimes have
+# name servers in non-authoritative sub-zones
+$dig +short $zone NS | grep $gluere |
+while read ns
+do	dig $ans $ns A
+	dig $ans $ns AAAA
+done | sort
+
+if	$dig $ans $zone DNSKEY |
+	grep DNSKEY >/dev/null
+then	$dig $ans $zone DNSKEY |
+	dnssec-dsfromkey -2 -f /dev/stdin $zone
+fi | sort
