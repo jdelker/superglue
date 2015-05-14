@@ -55,9 +55,12 @@ function usage() {
 'There must be lines containing the keywords "user" and "pass".\n'+
 '\n'+
 'The delegation file is in standard DNS Master File format with the origin\n'+
-'set to the domain being updated. It must contain NS records for the zone;\n'+
-'it may contain DS records and/or glue address records. TTLs are ignored.\n'+
-'$ directives, \\ escapes, "strings", and () continuations are not supported.\n'
+'set to the domain being updated. TTLs are ignored; $ directives, \\ escapes,\n'+
+'"strings", and () continuations are not supported.\n'+
+'\n'+
+'If the delegation file contain NS records for the zone and the necessary\n'+
+'glue address records, they will be updated. If it contains DS records, they\n'+
+'will be updated. If NS or DS records are omitted they are left as they are.'
 );
     phantom.exit(1);
 }
@@ -105,7 +108,7 @@ var delegation = (function load_delegation() {
 		syntax('NS RRs must be owned by '+domain);
 	    rdata = parse_dname(rdata);
 	    d.NS[rdata] = true;
-	    debug(domain+' NS '+rdata);
+	    debug('parse '+domain+' NS '+rdata);
 	    continue;
 	case 'DS':
 	    if (owner !== domain)
@@ -113,7 +116,7 @@ var delegation = (function load_delegation() {
 	    // TODO: sanity check rdata
 	    var ds = owner+'. IN DS '+rdata;
 	    d.DS = d.DS + ds + '\n';
-	    debug(ds);
+	    debug('parse '+ds);
 	    continue;
 	case 'A':
 	    if (owner.substr(-domain.length) !== domain)
@@ -123,7 +126,7 @@ var delegation = (function load_delegation() {
 	    if (!(owner in d.addr))
 		d.addr[owner] = [];
 	    d.addr[owner].push(rdata);
-	    debug(owner+' A '+rdata);
+	    debug('parse '+owner+' A '+rdata);
 	    continue;
 	case 'AAAA':
 	    if (owner.substr(-domain.length) !== domain)
@@ -133,22 +136,37 @@ var delegation = (function load_delegation() {
 	    if (!(owner in d.addr))
 		d.addr[owner] = [];
 	    d.addr[owner].push(rdata);
-	    debug(owner+' AAAA '+rdata);
+	    debug('parse '+owner+' AAAA '+rdata);
 	    continue;
 	}
     }
     var ns = Object.keys(d.NS);
-    d.count = ns.length;
-    if (!(d.count > 0))
+    if (ns.length === 0 && d.DS === '')
 	fail(file+': no delegation records found');
+    var nsa = [];
     for (var s in d.addr) {
 	if (!d.NS[s])
 	    fail(file+': glue records for nonexistent NS '+s);
 	d.addr[s].sort();
-	d.count += d.addr[s].length - 1;
     }
-    debug('name server count '+d.count);
-    d.NS = ns.sort();
+    for (var i = 0; i < ns.length; i++) {
+	if (ns[i].substr(-domain.length) === domain) {
+	    var a = d.addr[ns[i]];
+	    if (!a) fail(file+': glue records missing for NS '+ns[i]);
+	    for (var j = 0; j < a.length; j++) {
+		nsa.push({ name: ns[i], addr: a[j] });
+		debug(domain+' ns '+ns[i]+' glue '+a[j]);
+	    }
+	} else {
+	    if (d.addr[ns[i]])
+		fail(file+': spurious glue records for NS '+ns[i]);
+	    nsa.push({ name: ns[i], addr: '' });
+	    debug(domain+' ns '+ns[i]);
+	}
+    }
+    debug('name server count '+nsa.length);
+    d.NS = nsa.sort();
+    d.addr = undefined;
     return d;
 })();
 
