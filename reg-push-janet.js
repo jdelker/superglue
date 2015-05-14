@@ -262,8 +262,8 @@ casper.then(function find_domain() {
 	var res = this.evaluate(function find_domain(sel) {
 	    var a = document.querySelector(sel);
 	    var tr = a.parentNode.parentNode;
-	    var td = tr.childNodes[3];
-	    return td.innerHTML.toLowerCase();
+	    if (tr.childNodes[4].innerHTML === 'Delegated')
+		return tr.childNodes[3].innerHTML.toLowerCase();
 	}, sel);
 	info('Found domain: ' + res);
 	if (res === domain) {
