@@ -41,11 +41,12 @@ var debug = logfn('debug');
 function usage() {
     console.log(
 'usage: casperjs [--log-level=<level>] reg-push-janet.js\n'+
-'                [--ignore-tickets] [--ignore-match]\n'+
+'                [--ignore-tickets] [--ignore-match] [--not-really]\n'+
 '                 --creds=<file> --domain=<domain> --delegation=<file>\n'+
 '	--log-leve=<level>	Set "info" or "debug" mode\n'+
 '	--ignore-tickets	Update even if the domain has pending tickets\n'+
 '	--ignore-match		Update even if its delegation matches\n'+
+'	--not-really		Stop at the last moment\n'+
 '	--creds=<file>		Path to credentials file\n'+
 '	--domain=<domain>	The domain to update\n'+
 '	--delegation=<file>	File containing delegation records\n'+
@@ -275,6 +276,7 @@ casper.then(function find_domain() {
 casper.then(function open_domain() {
     info("Loaded domain details: " + this.getTitle());
     var tbl = this.getElementsInfo('#MainContent_nameServersTab td');
+    // current name servers
     var cns = [];
     for (var j = 0, i = 0; i < tbl.length; i++) {
 	var td = tbl[i].text;
@@ -294,6 +296,7 @@ casper.then(function open_domain() {
     } else {
 	debug('no DS records');
     }
+    // desired name servers
     var dns = delegation.NS;
     var match = !casper.cli.options['ignore-match'];
     if (cns.length !== dns.length && dns.length !== 0)
@@ -341,9 +344,29 @@ casper.then(function set_number_of_secondaries() {
     info("Loaded page: " + this.getTitle());
     var nsec = report_nsec();
     var form = {};
-    form[nsec_id] = d.NS.length - 1;
-    if (form[nsec_id] !== nsec)
-	this.fillSelectors('form', form);
+    if (delegation.NS.length > 0) {
+	form[nsec_id] = delegation.NS.length - 1;
+	if (form[nsec_id] !== nsec)
+	    this.fillSelectors('form', form);
+    }
+});
+
+var ds_id = '#MainContent_DsKeyTabContainer_DsPasteTab_DsKeyText';
+
+casper.waitForSelector(delegation.NS.length === 0 ? '#form1' :
+	'#MainContent_SecAddress'+(delegation.NS.length-2),
+function expand_ds_form() {
+    if (delegation.DS !== '' &&	!this.exists(ds_id))
+	this.click('#ModifyDsKeyIcon input');
+},
+function onTimeout() {
+    fail('Timeout while adjusting nameserver form for ' + domain);
+});
+
+casper.waitForSelector(delegation.DS === '' ? '#form1' : ds_id,
+	set_delegation, // see below
+function onTimeout() {
+    fail('Timeout while expanding DS form for ' + domain);
 });
 
 function twoDigit(n) {
@@ -368,15 +391,23 @@ function set_form_time(form, time, today) {
     notice('Modification scheduled at '+t+' '+d+' '+dd+' for '+domain);
 }
 
-casper.waitForSelector('#MainContent_SecAddress'+(delegation.NS.length-2),
-function set_nameservers() {
-    var n = set_ns.length;
-    if (report_nsec() !== ''+(n-1))
-	fail('Unable to resize nameserver form for ' + domain);
+function set_delegation() {
     var form = {}
-    form['#MainContent_PrimeNameserverName'] = set_ns[n-1];
-    for (var i = 0; i < n-1; i++)
-	form['#MainContent_SecAddress'+i] = set_ns[i];
+    var ns = delegation.NS;
+    var n = ns.length;
+    if (n > 0) {
+	if (report_nsec() !== ''+(n-1))
+	    fail('Unable to resize nameserver form for ' + domain);
+	form['#MainContent_PrimeNameserverName'] = ns[0].name;
+	form['#MainContent_PrimeNameserverIp']   = ns[0].addr;
+	for (var i = 0; i < n-1; i++) {
+	    form['#MainContent_SecAddress'+i] = ns[i+1].name;
+	    form['#MainContent_SecIp'+i]      = ns[i+1].addr;
+	}
+    }
+    if (delegation.DS !== '') {
+	form[ds_id] = delegation.DS;
+    }
     var now = HH_MM(new Date(Date.now() + 5 * 60 * 1000));
     var today = false;
     var times = this.getElementsInfo('#MainContent_ModificationTime option');
@@ -390,11 +421,13 @@ function set_nameservers() {
 	set_form_time(form, times[0], today = false);
     }
     this.fillSelectors('form', form);
-    this.click('#MainContent_ConfirmRequest');
-},
-function onTimeout() {
-    fail('Timeout while filling modification form for ' + domain);
-});
+    if (casper.cli.options['not-really']) {
+	notice('Not really!');
+	this.exit(0);
+    } else {
+	this.click('#MainContent_ConfirmRequest');
+    }
+}
 
 casper.waitForUrl(/ViewPendingTickets/,
 function change_submitted() {
