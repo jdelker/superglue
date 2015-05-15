@@ -50,38 +50,48 @@ case $# in
 	;;
 esac
 
-# assume name server names do not match zone apex
-gluere=$(echo $zone | sed 's/^/(^|.)/;s/\./\\./g;s/$/$/')
+nodata_error=true
 
-rdig="dig $rmode $rec"
+s='[ 	][ 	]*'
+digit() {
+	eval type='$'$#
+	out=$(dig +noall +comments +answer "$@")
+	status=$(printf "$out" |
+		 sed '/.* opcode: QUERY, status: /!d;s///;s/,.*//')
+	if	[ "$status" != "NOERROR" ]
+	then	echo 1>&2 "dig $* failed: $status"
+		exit 1
+	elif	printf "$out" | sed "/^;/d;/^\$/d;s/[0-9]*${s}IN/IN/" |
+		sort | grep $type
+	then	return 0
+	elif	$nodata_error
+	then	echo 1>&2 "dig $* failed: NODATA"
+		exit 1
+	else
+		return 1
+	fi
+}
+
+rdig="digit $rmode $rec"
 
 if $master
-then auth=@$($rdig +short soa $zone | sed 's/ .*//')
+then auth=@$($rdig $zone SOA | awk '{ print $5 }')
 fi
 
-adig="dig $amode $auth"
+adig="digit $amode $auth"
 
-ans='+noall +answer'
+$adig $zone NS
 
-cleanup() {
-	sort | sed 's/[0-9]*[ 	]IN/IN/'
-}
+nodata_error=false
 
-$adig $ans $zone NS | cleanup | grep ^ || {
-	echo 1>&1 "Could not get NS records of $zone"
-	exit 1
-}
-
-# glue lookups are recursive because we sometimes have
-# name servers in non-authoritative sub-zones
-$adig +short $zone NS | egrep $gluere |
+gluere=$(echo $zone | sed 's/^/(^|\.)/;s/\./\\./g;s/$/$/')
+$adig $zone NS | sed "s/.*${s}IN${s}NS${s}//" | egrep "$gluere" |
 while read ns
-do	$rdig $ans $ns A
-	$rdig $ans $ns AAAA
-done | cleanup
+do	$rdig $ns A    || true
+	$rdig $ns AAAA || true
+done
 
-if	$adig $ans $zone DNSKEY |
-	grep DNSKEY >/dev/null
-then	$adig $ans $zone DNSKEY |
+if	dnskey=$($adig $zone DNSKEY)
+then	printf "$dnskey" |
 	dnssec-dsfromkey -2 -f /dev/stdin $zone
-fi | sort
+fi
