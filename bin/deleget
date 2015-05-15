@@ -80,7 +80,7 @@ rdig="digit $rmode $rec"
 
 if	$master
 then	soa=$($rdig $zone SOA)
-	mname=$(p "$soa" | awk '{ print $5 }')
+	mname=$(p "$soa" | awk '{ print $4 }')
 	auth="@$mname"
 fi
 
