@@ -1,0 +1,92 @@
+.Dd May 15, 2015
+.Dt DELEGET 1
+.Sh NAME
+.Nm deleget
+.Nd print a DNS zone's delegation records
+.Sh SYNOPSIS
+.Nm
+.Op Fl ARlm
+.Op Fl a Ar auth
+.Op Fl r Ar rec
+.Op Fl s Ar ns
+.Aq Ar domain
+.Sh DESCRIPTION
+The
+.Nm
+program prints a
+.Tn DNS
+zone's delegation records
+in standard RFC 1035 master file format.
+These are the records that should appear in the parent zone.
+The output of
+.Nm
+is suitable as input for
+.Nm superglue .
+.Pp
+The delegation NS records are copied from the zone's apex.
+The DS records are converted from the zone's DNSKEY records.
+Glue address records are included
+for any name server whose name is at or below the zone apex.
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Fl A
+Make authoritative queries for glue records.
+By default,
+.Nm
+uses recursive queries to get glue
+because the glue records may be in child zones
+for which the server is not authoritative.
+.It Fl a Aq Ar auth
+The name or IP address of the server to query
+for NS and DNSKEY records.
+By default,
+.Nm
+uses the
+.Pa /etc/resolv.conf
+nameserver.
+.It Fl l
+Use localhost for NS and DNSKEY queries.
+Handy when you run
+.Nm
+on the zone's primary master.
+.It Fl m
+Get the zone's primary master from its
+SOA record MNAME field,
+to use for NS and DNSKEY queries.
+.It Fl R
+Make recursive queries for NS and DNSKEY records.
+By default
+.Nm
+expects to query an authoritative server.
+.It Fl r Aq Ar rec
+The name or IP address of the server to query
+for glue and SOA records.
+.It Fl s Aq Ar ns
+The name or IP address of the server to
+use for all queries.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh DIAGNOSTICS
+Error messages are of the form:
+.Bl -item
+.It
+.Li deleget:
+.Aq Ar STATUS
+.Li error from dig
+.Ao + Ns Ar options Ns ... Ac
+.Aq Ar domain
+.Aq Ar TYPE
+.El
+.Sh SEE ALSO
+.Xr dig 1 ,
+.Xr dnssec-dsfromkey 8 ,
+.Xr superglue 1 .
+.Sh AUTHOR
+.An Tony Finch
+.Aq Li dot@dotat.at
+.Aq Li fanf2@cam.ac.uk
+.br
+at Cambridge University Information Services
+.\" You may do anything with this. It has no warranty.
+.\" http://creativecommons.org/publicdomain/zero/1.0/
