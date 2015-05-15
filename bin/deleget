@@ -50,29 +50,32 @@ case $# in
 	;;
 esac
 
+s='[ 	][ 	]*'
+
 p() {
 	printf "%s" "$*"
 }
 
 nodata_error=true
 
-s='[ 	][ 	]*'
+digerr() {
+	echo 1>&2 "deleget: dig $1 failed: $2"
+	exit 1
+}
+
 digit() {
 	eval type='$'$#
 	out=$(dig +noall +comments +answer "$@")
 	status=$(p "$out" |
 		 sed '/.* opcode: QUERY, status: /!d;s///;s/,.*//')
 	if	[ "$status" != "NOERROR" ]
-	then	echo 1>&2 "dig $* failed: $status"
-		exit 1
+	then	digerr "$*" $status
 	elif	p "$out" | sed "/^;/d;/^\$/d;s/[0-9]*${s}IN/IN/" |
 		sort | grep $type
 	then	return 0
 	elif	$nodata_error
-	then	echo 1>&2 "dig $* failed: NODATA"
-		exit 1
-	else
-		return 1
+	then	digerr "$*" NODATA
+	else	exit 1
 	fi
 }
 
