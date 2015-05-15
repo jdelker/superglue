@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Written by Tony Finch <dot@dotat.at> <fanf2@cam.ac.uk>
+# at Cambridge University Information Services
+# You may do anything with this. It has no warranty.
+# http://creativecommons.org/publicdomain/zero/1.0/
 
 set -e
 
