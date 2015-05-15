@@ -3,29 +3,33 @@
 set -e
 
 usage() {
-	echo 1>&2 "usage: deleget [-AR] [-a auth] [-r rec] [-s ns] <domain>"
+	echo 1>&2 "usage: deleget [-ARm] [-a auth] [-r rec] [-s ns] <domain>"
 	echo 1>&2 "	-A		Use only authoritative queries"
 	echo 1>&2 "	-R		Use only recursiveive queries"
+	echo 1>&2 "	-m		Auth queries to zone's primary master"
 	echo 1>&2 "	-a auth		Server for authoritative queries"
 	echo 1>&2 "	-r rec		Server for recursive queries"
 	echo 1>&2 "	-s ns		Server for all queries"
 	echo 1>&2 "	-s ns		Server for all queries"
 	echo 1>&2 ""
-	echo 1>&2 "The deleget program prints a domain's delegation"
-	echo 1>&2 "NS, DS, and glue records in DNS master file format."
+	echo 1>&2 "The deleget program prints a DNS zone's delegation records"
+	echo 1>&2 "(NS, DS, and glue addresses) in standard master file format."
 	exit 1
 }
 
 amode='+norec'
 rmode='+recurse'
+master=false
 
-while getopts 'ARa:r:s:' opt
+while getopts 'ARma:r:s:' opt
 do	case $opt in
 	(A)	amode='+norec'
 		rmode='+norec'
 		;;
 	(R)	amode='+recurse'
 		rmode='+recurse'
+		;;
+	(m)	master=true
 		;;
 	(a)	auth="@$OPTARG"
 		;;
@@ -49,8 +53,13 @@ esac
 # assume name server names do not match zone apex
 gluere=$(echo $zone | sed 's/^/(^|.)/;s/\./\\./g;s/$/$/')
 
-adig="dig $amode $auth"
 rdig="dig $rmode $rec"
+
+if $master
+then auth=@$($rdig +short soa $zone | sed 's/ .*//')
+fi
+
+adig="dig $amode $auth"
 
 ans='+noall +answer'
 
