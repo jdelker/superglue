@@ -13,11 +13,11 @@ Input format
 ------------
 
 Every superglue program reads delegation records in a subset of
-standard RFC 1035 master file format. TTLs are ignored; $ directives,
-\ escapes, "strings", and () continuations are not supported.
+standard RFC 1035 master file format. TTLs are ignored; `$` directives,
+`\` escapes, "strings", and `()` continuations are not supported.
 
 The input can contain NS records, DS records, or both. The owner name
-of these records must match the zone. $ORIGIN and the default owner
+of these records must match the zone. The default owner and `$ORIGIN`
 are set to the zone name so you can abbreviate the input using omitted
 or unqualified domain names in the standard way.
 
@@ -44,15 +44,15 @@ credentials.
 deleget
 -------
 
-The deleget utility queries a child zone to produce delegation records
-that can be passed to superglue to update the delegation in the parent
+The `deleget` utility queries a child zone to produce delegation records
+that can be passed to `superglue` to update the delegation in the parent
 zone. This is useful if your DNS provisioning system can't emit the
 delegation records itself.
 
 superglue
 ---------
 
-The umbrella superglue program works out how a domain was registered
+The umbrella `superglue` program works out how a domain was registered
 and therefore which sub-program should be used to update its delegation.
 (Not yet written.)
 
@@ -60,8 +60,7 @@ superglue-janet
 ---------------
 
 JANET do not provide an API for updating domain delegations, only a
-[JavaScript-heavy web site][JANET]. The superglue-janet program uses
-PhantomJS and CasperJS to drive the web site using mainly its HTML
-id=... attributes. We hope these will be reasonably stable!
-
-[JANET]: https://naming.ja.net/dns/ JANET DNS management web site
+JavaScript-heavy web site <https://naming.ja.net/dns/>. The
+`superglue-janet` program uses PhantomJS and CasperJS to drive the web
+site using mainly its HTML id=... attributes. We hope these will be
+reasonably stable!
