@@ -8,9 +8,10 @@
 set -e
 
 usage() {
-	echo 1>&2 "usage: deleget [-ARm] [-a auth] [-r rec] [-s ns] <domain>"
+	echo 1>&2 "usage: deleget [-ARlm] [-a auth] [-r rec] [-s ns] <domain>"
 	echo 1>&2 "	-A		Use only authoritative queries"
 	echo 1>&2 "	-R		Use only recursiveive queries"
+	echo 1>&2 "	-l		Send auth queries to localhost"
 	echo 1>&2 "	-m		Auth queries to zone's primary master"
 	echo 1>&2 "	-a auth		Server for authoritative queries"
 	echo 1>&2 "	-r rec		Server for recursive queries"
@@ -26,13 +27,15 @@ amode='+norec'
 rmode='+recurse'
 master=false
 
-while getopts 'ARma:r:s:' opt
+while getopts 'ARlma:r:s:' opt
 do	case $opt in
 	(A)	amode='+norec'
 		rmode='+norec'
 		;;
 	(R)	amode='+recurse'
 		rmode='+recurse'
+		;;
+	(l)	auth='@localhost'
 		;;
 	(m)	master=true
 		;;
@@ -64,7 +67,7 @@ p() {
 nodata_error=true
 
 digerr() {
-	echo 1>&2 "deleget: dig $1 failed: $2"
+	echo 1>&2 "deleget: $2 error from dig $1"
 	exit 1
 }
 
