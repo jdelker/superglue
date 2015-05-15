@@ -2,27 +2,77 @@
 
 set -e
 
-zone=$1
-zone=$(echo $zone | sed 's/\.*$/./')
+usage() {
+	echo 1>&2 "usage: deleget [-AR] [-a auth] [-r rec] [-s ns] <domain>"
+	echo 1>&2 "	-A		Use only authoritative queries"
+	echo 1>&2 "	-R		Use only recursiveive queries"
+	echo 1>&2 "	-a auth		Server for authoritative queries"
+	echo 1>&2 "	-r rec		Server for recursive queries"
+	echo 1>&2 "	-s ns		Server for all queries"
+	echo 1>&2 "	-s ns		Server for all queries"
+	echo 1>&2 ""
+	echo 1>&2 "The deleget program prints a domain's delegation"
+	echo 1>&2 "NS, DS, and glue records in DNS master file format."
+	exit 1
+}
+
+amode='+norec'
+rmode='+recurse'
+
+while getopts 'ARa:r:s:' opt
+do	case $opt in
+	(A)	amode='+norec'
+		rmode='+norec'
+		;;
+	(R)	amode='+recurse'
+		rmode='+recurse'
+		;;
+	(a)	auth="@$OPTARG"
+		;;
+	(r)	rec="@$OPTARG"
+		;;
+	(s)	auth="@$OPTARG"
+		rec="@$OPTARG"
+		;;
+	(*)	usage
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+case $# in
+(1)	zone=$(echo $1 | sed 's/\.*$/./')
+	;;
+(*)	usage
+	;;
+esac
 
 # assume name server names do not match zone apex
-gluere=$(echo $zone | sed 's/^/./;s/\./\\./g;s/$/$/')
+gluere=$(echo $zone | sed 's/^/(^|.)/;s/\./\\./g;s/$/$/')
 
-dig='dig @::1 +norec'
+adig="dig $amode $auth"
+rdig="dig $rmode $rec"
+
 ans='+noall +answer'
 
-$dig $ans @::1 $zone NS | sort
+cleanup() {
+	sort | sed 's/[0-9]*[ 	]IN/IN/'
+}
+
+$adig $ans $zone NS | cleanup | grep ^ || {
+	echo 1>&1 "Could not get NS records of $zone"
+	exit 1
+}
 
 # glue lookups are recursive because we sometimes have
 # name servers in non-authoritative sub-zones
-$dig +short $zone NS | grep $gluere |
+$adig +short $zone NS | egrep $gluere |
 while read ns
-do	dig $ans $ns A
-	dig $ans $ns AAAA
-done | sort
+do	$rdig $ans $ns A
+	$rdig $ans $ns AAAA
+done | cleanup
 
-if	$dig $ans $zone DNSKEY |
+if	$adig $ans $zone DNSKEY |
 	grep DNSKEY >/dev/null
-then	$dig $ans $zone DNSKEY |
+then	$adig $ans $zone DNSKEY |
 	dnssec-dsfromkey -2 -f /dev/stdin $zone
 fi | sort
