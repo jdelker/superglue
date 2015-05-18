@@ -109,6 +109,6 @@ do	$rdig $ns A    || true
 done
 
 if	dnskey=$($adig $zone DNSKEY)
-then	p "$dnskey" |
+then	(echo '$TTL 3600'; p "$dnskey"; echo) |
 	dnssec-dsfromkey -2 -f /dev/stdin $zone
 fi
