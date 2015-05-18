@@ -97,18 +97,22 @@ fi
 
 adig="digit $amode $auth"
 
-$adig $zone NS
+NS=$($adig $zone NS)
 
 nodata_error=false
 
 gluere=$(echo $zone | sed 's/^/(^|\.)/;s/\./\\./g;s/$/$/')
-$adig $zone NS | sed "s/.*${s}IN${s}NS${s}//" | egrep "$gluere" |
+GLUE=$($adig $zone NS | sed "s/.*${s}IN${s}NS${s}//" | egrep "$gluere" |
 while read ns
 do	$rdig $ns A    || true
 	$rdig $ns AAAA || true
-done
+done)
 
-if	dnskey=$($adig $zone DNSKEY)
+DS=$(if	dnskey=$($adig $zone DNSKEY)
 then	(echo '$TTL 3600'; p "$dnskey"; echo) |
 	dnssec-dsfromkey -2 -f /dev/stdin $zone
-fi
+fi)
+
+echo "$NS"
+echo "$GLUE"
+echo "$DS"
