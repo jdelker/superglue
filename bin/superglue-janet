@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib/superglue/perl5";
+
+use ScriptDie;
+use Superglue;
+
+Superglue::getopt;
+
+my @loglevel = ($opt{debug} ? '--log-level=debug' :
+	        $opt{verbose} ? '--log-level=info' : undef);
+
+my $javascript = "$libdir/superglue-janet.js";
+my $casper = "$libdir/casperjs/bin/casperjs";
+
+my @args = ($casper, @loglevel, $javascript, "--cred=$opt{creds}", $zone);
+
+swarn "exec @args" if $opt{debug};
+
+exec @args
+    or edie "exec @args";
+
+__END__
+
+=head1 NAME
+
+superglue-janet - synchronize DNS delegation with JANET
+
+=head1 SYNOPSIS
+
+B<superglue-janet> [B<--debug>|B<-d>] [B<--verbose>|B<-v>]
+    [B<--not-really>|B<-n>] B<--creds>=I<file>|B<-c>I<file> I<domain>
+
+B<superglue-janet> B<-h>|B<--help>
+
+=head1 DESCRIPTION
+
