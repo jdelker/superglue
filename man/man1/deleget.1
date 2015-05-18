@@ -28,6 +28,13 @@ The delegation NS records are copied from the zone's apex.
 The DS records are converted from the zone's DNSKEY records.
 Glue address records are included
 for any name server whose name is at or below the zone apex.
+.Pp
+The
+.Nm dig
+utility is used for DNS lookups,
+and the
+.Nm dnssec-dsfromkey
+utility is used to convert DNSKEY records to DS records.
 .Sh OPTIONS
 .Bl -tag -width indent
 .It Fl A
