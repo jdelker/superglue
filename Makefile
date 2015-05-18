@@ -12,9 +12,9 @@ CASPERJS=lib/superglue/casperjs
 CASPERJS_VER = 376d85fceb5eca63596e12e2ef6072a72422ed9b
 
 all: ${CASPERJS}
-	: Checking CasperJS version
-	${CASPERJS}/bin/casperjs --version
 
 ${CASPERJS}:
 	git clone git://github.com/n1k0/casperjs ${CASPERJS}
 	cd ${CASPERJS} && git checkout ${CASPERJS_VER}
+	: CasperJS smoke test
+	${CASPERJS}/bin/casperjs --version
