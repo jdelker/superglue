@@ -1,5 +1,5 @@
-Superglue: synchronize DNS delegations
-======================================
+Superglue: automatically synchronize DNS delegations
+====================================================
 
 Superglue is a suite of programs for updating the delegation in a
 parent zone so that it is consistent with the contents of the child
@@ -8,6 +8,18 @@ zone.
 There are multiple programs for updating delegations, which vary
 depending on the API used to communicate with the zone's registrar
 or registry.
+
+Installation
+------------
+
+You can run superglue from a git checkout. (There is not yet a way to
+install superglue in a standard location.)
+
+You will need PhantomJS 1.9. The version that comes with Ubuntu 14.04
+is suitable.
+
+Run `make` to do the build and setup tasks. At the moment this just
+obtains a copy of CasperJS for use by superglue-janet.
 
 Input format
 ------------
