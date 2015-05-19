@@ -146,16 +146,18 @@ sub read_delegation {
 	# TODO: generate DS from DNSKEY and accept only DNSKEY in
 	# input (dnssec-dsfromkey will do syntax checks)
 	sdie "$z: no delegation records in input"
-	    unless @{$d{NS}} or @{$d{DS}} or @{$d{DNSKEY}};
-	my %ns;
-	for my $ns (@{$d{NS}}) {
-		sdie "$z: glue records missing for NS $ns"
+	    unless $d{NS} or $d{DS} or $d{DNSKEY};
+	if ($d{NS}) {
+		my %ns;
+		for my $ns (@{$d{NS}}) {
+			sdie "$z: glue records missing for NS $ns"
 		    if $ns =~ $subdomain and not $d{glue}{$ns};
-		$ns{$ns} = 1;
-	}
-	for my $ns (keys %{$d{glue}}) {
-		sdie "$z: glue records for nonexistent NS $ns"
-		    unless $ns{$ns};
+			$ns{$ns} = 1;
+		}
+		for my $ns (keys %{$d{glue}}) {
+			sdie "$z: glue records for nonexistent NS $ns"
+			    unless $ns{$ns};
+		}
 	}
 	return %d;
 }
