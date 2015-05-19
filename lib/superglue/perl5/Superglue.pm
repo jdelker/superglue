@@ -14,25 +14,41 @@ sub Pod::Usage::cmd_c { return $_[2] }
 sub Pod::Usage::cmd_i { return "<$_[2]>" }
 
 our @EXPORT = qw{
-	%opt
-	$libdir
-	$zone
+	debug
 	usage
+	verbose
 };
 
-our %opt;
-our $zone;
+our $lib = realpath("$FindBin::Bin/../lib/superglue");
+our $CasperJS = "$lib/casperjs/bin/casperjs";
 
-our $libdir = realpath("$FindBin::Bin/../lib/superglue");
+sub verbose {
+	1;
+}
+
+sub debug {
+	1;
+}
 
 sub usage {
 	my $v = shift // 0;
 	pod2usage( -exit => $v != 2, -verbose => $v );
 }
 
+sub redefine {
+	my $name= shift;
+	my $ref = shift;
+	my $pkg = caller(1);
+	no strict 'refs';
+	no warnings;
+	*{$pkg."::".$name} = *{$name} = $ref;
+}
+
 sub getopt {
+	my %opt;
+
 	GetOptions(\%opt, qw{
-		creds|c
+		creds|c=s
 		debug|d
 		h|?
 		help
@@ -46,7 +62,12 @@ sub getopt {
 	usage unless $opt{creds};
 	usage unless @ARGV == 1;
 
-	$zone = shift @ARGV;
+	$opt{zone} = shift @ARGV;
+
+	redefine 'debug',   \&ScriptDie::swarn if $opt{debug};
+	redefine 'verbose', \&ScriptDie::swarn if $opt{verbose};
+
+	return %opt;
 }
 
 1;

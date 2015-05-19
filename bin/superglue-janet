@@ -9,17 +9,17 @@ use lib "$FindBin::Bin/../lib/superglue/perl5";
 use ScriptDie;
 use Superglue;
 
-Superglue::getopt;
+my %opt = Superglue::getopt;
 
 my @loglevel = ($opt{debug} ? '--log-level=debug' :
 	        $opt{verbose} ? '--log-level=info' : undef);
 
-my $javascript = "$libdir/superglue-janet.js";
-my $casper = "$libdir/casperjs/bin/casperjs";
+my $javascript = "$Superglue::lib/superglue-janet.js";
 
-my @args = ($casper, @loglevel, $javascript, "--cred=$opt{creds}", $zone);
+my @args = ($Superglue::CasperJS, @loglevel,
+	    $javascript, "--cred=$opt{creds}", $opt{zone});
 
-swarn "exec @args" if $opt{debug};
+debug "exec @args";
 
 exec @args
     or edie "exec @args";
