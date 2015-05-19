@@ -3,9 +3,6 @@ package Superglue;
 use warnings;
 use strict;
 
-no warnings 'experimental::smartmatch';
-use feature 'switch';
-
 use Cwd qw(realpath);
 use Exporter qw(import);
 use Getopt::Long qw{:config gnu_getopt posix_default};
@@ -99,7 +96,6 @@ sub load_kv {
 
 sub read_delegation {
 	my $z = shift;
-	my $owner = $z;
 	my $subdomain = quotemeta $z;
 	$subdomain = qr{(^|\.)$subdomain$};
 	my %d;
@@ -111,7 +107,7 @@ sub read_delegation {
 		return $n if $n =~ $re_dname;
 		sdie "$origin:$.: bad domain name: $n";
 	};
-	my $rdata;
+	my ($owner,$type,$rdata) = $z;
 	my %check = (
 	NS	=> sub { parse_dname $z, $rdata },
 	DS	=> sub { $rdata },
@@ -125,21 +121,20 @@ sub read_delegation {
 		s{;.*}{};
 		next if m{^\s*$};
 		sdie "$z:$.: could not parse line: $_" unless
-		    s{^(\S*)\s+
+		    m{^(\S*)\s+
 		       (?:(?:IN|\d+)\s+)*
 		       (NS|DS|DNSKEY|A|AAAA)\s+
-		       (.*?)\s*$}
-		     {$2}x; # topic is now RR type
+		       (.*?)\s*$};
 		$owner = parse_dname $z, $1 if $1 ne '';
+		$type = $2;
 		$rdata = $3;
-		when (m{^(NS|DS|DNSKEY)$}) {
+		if (m{^(NS|DS|DNSKEY)$}) {
 			sdie "$z:$.: $_ RRs must be owned by $z"
 			    unless $owner eq $z;
 			$rdata = $check{$_}->();
 			push @{$d{$_}}, $rdata;
 			debug "parse $z $_ $rdata";
-		}
-		when (m{^(A|AAAA)$}) {
+		} elsif (m{^(A|AAAA)$}) {
 			sdie "$z:$.: glue $_ records must be subdomains of $z"
 			    unless $owner =~ $subdomain;
 			push @{$d{glue}{$owner}}, $rdata;
