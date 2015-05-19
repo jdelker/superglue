@@ -7,6 +7,7 @@ use Cwd qw(realpath);
 use Exporter qw(import);
 use Getopt::Long qw{:config gnu_getopt posix_default};
 use Pod::Usage;
+use ScriptDie;
 
 # monkey patch to fix help text markup
 sub Pod::Usage::cmd_b { return $_[2] }
@@ -68,6 +69,18 @@ sub getopt {
 	redefine 'verbose', \&ScriptDie::swarn if $opt{verbose};
 
 	return %opt;
+}
+
+sub load_kv {
+	my $fn = shift;
+	my %h;
+	eopen my $fh, '<', $fn;
+	while (<$fh>) {
+		next if m{^\s*$|^\s*#};
+		my ($key,$val) = split;
+		$h{$key} = $val;
+	}
+	return %h
 }
 
 1;
