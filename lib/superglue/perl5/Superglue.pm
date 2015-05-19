@@ -151,13 +151,15 @@ sub read_delegation {
 	if ($d{NS}) {
 		for my $ns (@{$d{NS}}) {
 			sdie "$z: glue records missing for NS $ns"
-		    if $ns =~ $subdomain and not $d{glue}{$ns};
+			    if $ns =~ $subdomain and not $d{glue}{$ns};
 			$ns{$ns} = 1;
 		}
+		$d{NS} = [sort @{$d{NS}}];
 	}
 	for my $ns (keys %{$d{glue}}) {
 		sdie "$z: glue records for nonexistent NS $ns"
 		    unless $ns{$ns};
+		$d{glue}{$ns} = [sort @{$d{glue}{$ns}}];
 	}
 	# TODO: eliminate DS from input format and change
 	# superglue-janet to use this conversion
@@ -176,6 +178,8 @@ sub read_delegation {
 		}
 		sdie "$z: could not get a DS for each DNSKEY"
 		    unless @{$d{DS}} == @{$d{DNSKEY}};
+		$d{DNSKEY} = [sort @{$d{DNSKEY}}];
+		$d{DS} = [sort @{$d{DS}}];
 	}
 	return %d;
 }
