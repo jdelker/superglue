@@ -131,16 +131,17 @@ sub read_delegation {
 		if ($type =~ m{^(NS|DS|DNSKEY)$}) {
 			sdie "$z:$.: $_ RRs must be owned by $z"
 			    unless $owner eq $z;
-			$rdata = $check{$_}->();
-			$d{$_} = [] unless $d{$_};
-			push @{$d{$_}}, $rdata;
-			debug "parse $z $_ $rdata";
+			$rdata = $check{$type}->();
+			$d{$type} = [] unless $d{$type};
+			push @{$d{$type}}, $rdata;
+			debug "parse $z $type $rdata";
 		} elsif ($type =~ m{^(A|AAAA)$}) {
 			sdie "$z:$.: glue $_ records must be subdomains of $z"
 			    unless $owner =~ $subdomain;
+			$rdata = $check{$type}->();
 			$d{glue}{$owner} = [] unless $d{glue}{$owner};
 			push @{$d{glue}{$owner}}, $rdata;
-			debug "parse $owner $_ $rdata";
+			debug "parse $owner $type $rdata";
 		}
 	}
 	# TODO: generate DS from DNSKEY and accept only DNSKEY in
