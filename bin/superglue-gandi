@@ -9,26 +9,34 @@ use Superglue;
 use XML::RPC;
 
 my %opt = Superglue::getopt;
-
 my %creds = Superglue::load_kv $opt{creds};
+my %d = Superglue::read_delegation;
 
-print Data::Dumper->Dump([\%creds]);
-
+my $r;
 my $api = XML::RPC->new($creds{url});
 
-debug 'got api';
+sub api_get {
+	my $method = shift;
+	$r = $api->call($method, $creds{apikey}, $opt{zone});
+	sdie "$opt{zone} $method: $r->{faultString}" if $r->{faultString};
+	return $r;
+}
+my @ns = @{api_get('domain.info')->{nameservers}};
+for my $ns (sort @ns) {
+	debug "$opt{zone} NS $ns";
+}
+my @glue = @{api_get('domain.host.list')};
+for my $ns (sort { $a->{name} cmp $b->{name} } @glue) {
+	for my $a (sort @{$ns->{ips}}) {
+		debug "$ns A $a"    if $a =~ $Superglue::re_ipv4;
+		debug "$ns AAAA $a" if $a =~ $Superglue::re_ipv6;
+	}
+}
+my @keys = @{api_get('domain.dnssec.list')};
+for my $key (@keys) {
+	debug "$opt{zone} DNSKEY $key->{flags} 3 $key->{algorithm} $key->{public_key}";
+}
 
-my $result = $api->call('version.info', $creds{apikey});
-
-debug 'got result';
-
-print Data::Dumper->Dump([$result]);
-
-my $result = $api->call('domain.info', $creds{apikey}, $opt{zone});
-
-debug 'got result';
-
-print Data::Dumper->Dump([$result]);
 
 __END__
 
