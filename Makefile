@@ -8,8 +8,9 @@ SG=lib/superglue
 # to avoid colliding with other versions.
 CASPERJS=${SG}/casperjs
 XMLRPC=${SG}/perl5/XML/RPC.pm
+XMLtreePP=${SG}/perl5/XML/TreePP.pm
 
-all: ${CASPERJS} ${XMLRPC}
+all: ${CASPERJS} ${XMLRPC} ${XMLtreePP}
 
 # Pick a fixed revision of CasperJS for stability. The most recent tag
 # is 1.1-beta3 dated 29 Nov 2013 - it would be nice if they could spin
@@ -38,3 +39,18 @@ ${XMLRPCsrc}: ${SG}/${XMLRPCtgz}
 
 ${SG}/${XMLRPCtgz}:
 	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/XML/${XMLRPCtgz}
+
+XMLtreePPver=XML-TreePP-0.43
+XMLtreePPtgz=${XMLtreePPver}.tar.gz
+XMLtreePPsrc=${SG}/${XMLtreePPver}/lib/XML/TreePP.pm
+
+${XMLtreePP}: ${XMLtreePPsrc}
+	: easier than faffing with Makefile.PL
+	mkdir -p ${SG}/perl5/XML
+	install -m 0644 ${XMLtreePPsrc} ${XMLtreePP}
+
+${XMLtreePPsrc}: ${SG}/${XMLtreePPtgz}
+	cd ${SG} && tar xf ${XMLtreePPtgz}
+
+${SG}/${XMLtreePPtgz}:
+	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/XML/${XMLtreePPtgz}
