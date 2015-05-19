@@ -18,7 +18,8 @@ my $api = XML::RPC->new($creds{url});
 sub api_get {
 	my $method = shift;
 	$r = $api->call($method, $creds{apikey}, $opt{zone});
-	sdie "$opt{zone} $method: $r->{faultString}" if $r->{faultString};
+	sdie "$opt{zone} $method: $r->{faultString}"
+	    if ref $r eq HASH and $r->{faultString};
 	return $r;
 }
 my @ns = @{api_get('domain.info')->{nameservers}};
