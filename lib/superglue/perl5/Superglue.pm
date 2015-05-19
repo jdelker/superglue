@@ -124,7 +124,7 @@ sub read_delegation {
 		    m{^(\S*)\s+
 		       (?:(?:IN|\d+)\s+)*
 		       (NS|DS|DNSKEY|A|AAAA)\s+
-		       (.*?)\s*$};
+		       (.*?)\s*$}x;
 		$owner = parse_dname $z, $1 if $1 ne '';
 		$type = $2;
 		$rdata = $3;
