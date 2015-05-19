@@ -145,8 +145,6 @@ sub read_delegation {
 			debug "parse $owner $type $rdata";
 		}
 	}
-	# TODO: generate DS from DNSKEY and accept only DNSKEY in
-	# input (dnssec-dsfromkey will do syntax checks)
 	sdie "$z: no delegation records in input"
 	    unless $d{NS} or $d{DS} or $d{DNSKEY};
 	my %ns;
@@ -161,6 +159,8 @@ sub read_delegation {
 		sdie "$z: glue records for nonexistent NS $ns"
 		    unless $ns{$ns};
 	}
+	# TODO: eliminate DS from input format and change
+	# superglue-janet to use this conversion
 	if ($d{DNSKEY}) {
 		local $SIG{PIPE} = 'IGNORE';
 		my $pid = open2 my $ds_h, my $dnskey_h,
