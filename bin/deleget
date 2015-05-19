@@ -83,7 +83,7 @@ digit() {
 	then	return 0
 	elif	$nodata_error
 	then	digerr "$*" NODATA
-	else	exit 1
+	else	return 1
 	fi
 }
 
