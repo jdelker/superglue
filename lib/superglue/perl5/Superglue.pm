@@ -3,6 +3,9 @@ package Superglue;
 use warnings;
 use strict;
 
+no warnings 'experimental::smartmatch';
+use feature 'switch';
+
 use Cwd qw(realpath);
 use Exporter qw(import);
 use Getopt::Long qw{:config gnu_getopt posix_default};
@@ -22,6 +25,10 @@ our @EXPORT = qw{
 
 our $lib = realpath("$FindBin::Bin/../lib/superglue");
 our $CasperJS = "$lib/casperjs/bin/casperjs";
+
+our $re_dname = qr/^(?:[a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/;
+our $re_ipv6 = qr/^(?:[0-9a-f]{1,4}:)+(?::|(?::[0-9a-f]{1,4})+|[0-9a-f]{1,4})$/;
+our $re_ipv4 = qr/^\d+\.\d+\.\d+\.\d+$/;
 
 sub verbose {
 	1;
@@ -64,6 +71,8 @@ sub getopt {
 	usage unless @ARGV == 1;
 
 	$opt{zone} = shift @ARGV;
+	sdie "bad domain name: $opt{zone}"
+	  unless $opt{zone} =~ $re_dname;
 
 	redefine 'debug',   \&ScriptDie::swarn if $opt{debug};
 	redefine 'verbose', \&ScriptDie::swarn if $opt{verbose};
@@ -86,6 +95,72 @@ sub load_kv {
 		$h{$key} = $val;
 	}
 	return %h
+}
+
+sub read_delegation {
+	my $z = shift;
+	my $owner = $z;
+	my $subdomain = quotemeta $z;
+	$subdomain = qr{(^|\.)$subdomain$};
+	my %d;
+	sub parse_dname {
+		my $origin = shift;
+		my $n = lc shift;
+		return $origin if $n eq '@';
+		$n = "$n.$origin" unless $n =~ s{\.$}{};
+		return $n if $n =~ $re_dname;
+		sdie "$origin:$.: bad domain name: $n";
+	};
+	my $rdata;
+	my %check = (
+	NS	=> sub { parse_dname $z, $rdata },
+	DS	=> sub { $rdata },
+	DNSKEY	=> sub { $rdata },
+	A	=> sub { $rdata =~ $re_ipv4 ? $rdata :
+			   sdie "$z:$.: bad IPv4 address: $rdata" },
+	AAAA	=> sub { $rdata =~ $re_ipv6 ? $rdata :
+			   sdie "$z:$.: bad IPv6 address: $rdata" },
+	);
+	while (<>) {
+		s{;.*}{};
+		next if m{^\s*$};
+		sdie "$z:$.: could not parse line: $_" unless
+		    s{^(\S*)\s+
+		       (?:(?:IN|\d+)\s+)*
+		       (NS|DS|DNSKEY|A|AAAA)\s+
+		       (.*?)\s*$}
+		     {$2}x; # topic is now RR type
+		$owner = parse_dname $z, $1 if $1 ne '';
+		$rdata = $3;
+		when (m{^(NS|DS|DNSKEY)$}) {
+			sdie "$z:$.: $_ RRs must be owned by $z"
+			    unless $owner eq $z;
+			$rdata = $check{$_}->();
+			push @{$d{$_}}, $rdata;
+			debug "parse $z $_ $rdata";
+		}
+		when (m{^(A|AAAA)$}) {
+			sdie "$z:$.: glue $_ records must be subdomains of $z"
+			    unless $owner =~ $subdomain;
+			push @{$d{glue}{$owner}}, $rdata;
+			debug "parse $owner $_ $rdata";
+		}
+	}
+	# TODO: generate DS from DNSKEY and accept only DNSKEY in
+	# input (dnssec-dsfromkey will do syntax checks)
+	sdie "$z: no delegation records in input"
+	    unless @{$d{NS}} or @{$d{DS}} or @{$d{DNSKEY}};
+	my %ns;
+	for my $ns (@{$d{NS}}) {
+		sdie "$z: glue records missing for NS $ns"
+		    if $ns =~ $subdomain and not $d{glue}{$ns};
+		$ns{$ns} = 1;
+	}
+	for my $ns (keys %{$d{glue}}) {
+		sdie "$z: glue records for nonexistent NS $ns"
+		    unless $ns{$ns};
+	}
+	return %d;
 }
 
 1;
