@@ -17,8 +17,11 @@ my @loglevel;
 $loglevel[0] = '--log-level=verbose' if $opt{verbose};
 $loglevel[0] = '--log-level=debug' if $opt{debug};
 
-my @args = ($Superglue::CasperJS, @loglevel,
-	    $javascript, "--creds=$opt{creds}", $opt{zone});
+my @notreally;
+$notreally[0] = '--not-really' if $opt{'not-really'};
+
+my @args = ($Superglue::CasperJS, @loglevel, $javascript,
+	    @notreally, "--creds=$opt{creds}", $opt{zone});
 
 debug "exec @args";
 
