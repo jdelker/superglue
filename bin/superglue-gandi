@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+
+use FindBin;
+use lib "$FindBin::Bin/../lib/superglue/perl5";
+
+use Data::Dumper;
+use ScriptDie;
+use Superglue;
+use XML::RPC;
+
+my %opt = Superglue::getopt;
+
+my %creds = Superglue::load_kv $opt{creds};
+
+print Data::Dumper->Dump([\%creds]);
+
+my $api = XML::RPC->new($creds{url});
+
+debug 'got api';
+
+my $result = $api->call('version.info', $creds{apikey});
+
+debug 'got result';
+
+print Data::Dumper->Dump([$result]);
+
+my $result = $api->call('domain.info', $creds{apikey}, $opt{zone});
+
+debug 'got result';
+
+print Data::Dumper->Dump([$result]);
+
+__END__
+
+=head1 NAME
+
+superglue-gandi - synchronize DNS delegation with Gandi
+
+=head1 SYNOPSIS
+
+B<superglue-gandi> [B<--debug>|B<-d>] [B<--verbose>|B<-v>]
+    [B<--not-really>|B<-n>] B<--creds>=I<file>|B<-c>I<file> I<domain>
+
+B<superglue-gandi> B<-h>|B<--help>
+
+=head1 DESCRIPTION
+
