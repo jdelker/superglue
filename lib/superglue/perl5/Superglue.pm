@@ -162,12 +162,26 @@ sub read_delegation {
 		    unless $ns{$ns};
 	}
 	if ($d{DNSKEY}) {
+		undef $d{DS};
 		local $SIG{PIPE} = 'IGNORE';
 		my $pid = open2 my $ds_h, my $dnskey_h,
 		    "dnssec-dsfromkey -2 -f /dev/stdin $z";
 		print $dnskey_h map "$z. 3600 IN DNSKEY $_\n", @{$d{DNSKEY}};
 		close $dnskey_h;
-		print while <>;
+		while (<$ds_h>) {
+			sdie "$z: could not parse DS record: $_" unless
+			    m{^(\S+)\s+IN\s+DS\s+(.*?)\s*$};
+			$owner = parse_dname $z, $1;
+			$type = 'DS';
+			$rdata = $2;
+			sdie "$z: DS RRs must be owned by $z"
+			    unless $owner eq $z;
+			$d{$type} = [] unless $d{$type};
+			push @{$d{$type}}, $rdata;
+			debug "parse $z $type $rdata";
+		}
+		sdie "$z: could not get DS for each DNSKEY"
+		    unless @{$d{DS}} == @{$d{DNSKEY}};
 	}
 	return %d;
 }
