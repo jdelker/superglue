@@ -79,7 +79,7 @@ digit() {
 	if	[ "$status" != "NOERROR" ]
 	then	digerr "$*" "$status"
 	elif	p "$out" | sed "/^;/d;/^\$/d;s/[0-9]*${s}IN/IN/" |
-		sort | grep "$type"
+		sort | grep "${s}IN${s}${type}${s}"
 	then	return 0
 	elif	$nodata_error
 	then	digerr "$*" NODATA
@@ -108,11 +108,13 @@ do	$rdig "$ns" A    || true
 	$rdig "$ns" AAAA || true
 done)
 
-DS=$(if	dnskey=$($adig "$zone" DNSKEY)
-then	(echo '$TTL 3600'; p "$dnskey"; echo) |
-	dnssec-dsfromkey -2 -f /dev/stdin "$zone"
-fi)
+if	DNSKEY=$($adig "$zone" DNSKEY | grep "${s}IN${s}DNSKEY${s}257${s}")
+then
+	DS=$(	(echo '$TTL 3600'; p "$DNSKEY"; echo) |
+		dnssec-dsfromkey -2 -f /dev/stdin "$zone")
+fi
 
 echo "$NS"
 echo "$GLUE"
+echo "$DNSKEY"
 echo "$DS"

@@ -18,7 +18,8 @@ program prints a
 .Tn DNS
 zone's delegation records
 in standard RFC 1035 master file format.
-These are the records that should appear in the parent zone.
+These are the records that are needed by the parent zone
+for a correct delegation.
 The output of
 .Nm
 is suitable as input for
@@ -26,6 +27,8 @@ is suitable as input for
 .Pp
 The delegation NS records are copied from the zone's apex.
 The DS records are converted from the zone's DNSKEY records.
+Both DS and DNSKEY records are printed because
+parent zones differ in which format they accept.
 Glue address records are included
 for any name server whose name is at or below the zone apex.
 .Pp
