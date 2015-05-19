@@ -6,6 +6,7 @@ use strict;
 use Cwd qw(realpath);
 use Exporter qw(import);
 use Getopt::Long qw{:config gnu_getopt posix_default};
+use IPC::Open2;
 use Pod::Usage;
 use ScriptDie;
 
@@ -159,6 +160,14 @@ sub read_delegation {
 	for my $ns (keys %{$d{glue}}) {
 		sdie "$z: glue records for nonexistent NS $ns"
 		    unless $ns{$ns};
+	}
+	if ($d{DNSKEY}) {
+		local $SIG{PIPE} = 'IGNORE';
+		my $pid = open2 my $ds_h, my $dnskey_h,
+		    "dnssec-dsfromkey -2 -f /dev/stdin $z";
+		print $dnskey_h map "$z. 3600 IN DNSKEY $_\n", @{$d{DNSKEY}};
+		close $dnskey_h;
+		print while <>;
 	}
 	return %d;
 }
