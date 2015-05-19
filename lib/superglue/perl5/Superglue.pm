@@ -78,6 +78,11 @@ sub load_kv {
 	while (<$fh>) {
 		next if m{^\s*$|^\s*#};
 		my ($key,$val) = split;
+		if ($key =~ m{^(pass|apikey)$}) {
+			debug("$fn:$.: $key -> ******");
+		} else {
+			debug("$fn:$.: $key -> $val");
+		}
 		$h{$key} = $val;
 	}
 	return %h
