@@ -97,8 +97,8 @@ sub load_kv {
 
 sub read_delegation {
 	my $z = shift;
-	my $subdomain = quotemeta $z;
-	$subdomain = qr{(^|\.)$subdomain$};
+	my $qz = quotemeta $z;
+	my $subdomain = qr{(^|\.)$qz$};
 	my %d;
 	sub parse_dname {
 		my $origin = shift;
@@ -162,25 +162,19 @@ sub read_delegation {
 		    unless $ns{$ns};
 	}
 	if ($d{DNSKEY}) {
-		undef $d{DS};
 		local $SIG{PIPE} = 'IGNORE';
 		my $pid = open2 my $ds_h, my $dnskey_h,
 		    "dnssec-dsfromkey -2 -f /dev/stdin $z";
 		print $dnskey_h map "$z. 3600 IN DNSKEY $_\n", @{$d{DNSKEY}};
 		close $dnskey_h;
+		$d{DS} = [];
 		while (<$ds_h>) {
 			sdie "$z: could not parse DS record: $_" unless
-			    m{^(\S+)\s+IN\s+DS\s+(.*?)\s*$};
-			$owner = parse_dname $z, $1;
-			$type = 'DS';
-			$rdata = $2;
-			sdie "$z: DS RRs must be owned by $z"
-			    unless $owner eq $z;
-			$d{$type} = [] unless $d{$type};
-			push @{$d{$type}}, $rdata;
-			debug "parse $z $type $rdata";
+			    m{^$qz\.\s+IN\s+DS\s+(.*?)\s*$};
+			push @{$d{DS}}, $1;
+			debug "parse $z DS $1";
 		}
-		sdie "$z: could not get DS for each DNSKEY"
+		sdie "$z: could not get a DS for each DNSKEY"
 		    unless @{$d{DS}} == @{$d{DNSKEY}};
 	}
 	return %d;
