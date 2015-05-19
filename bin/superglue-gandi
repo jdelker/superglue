@@ -22,22 +22,35 @@ sub api_get {
 	    if ref $r eq HASH and $r->{faultString};
 	return $r;
 }
-my @ns = @{api_get('domain.info')->{nameservers}};
-for my $ns (sort @ns) {
-	debug "$opt{zone} NS $ns";
+
+if ($d{NS}) {
+	my @ns = @{api_get('domain.info')->{nameservers}};
+	my $ns_match = @ns == @{$d{NS}};
+	for my $i (0 .. $#ns) {
+		debug "$opt{zone} NS $ns[$i]";
+		$ns_match = 0 if $ns[$i] ne $d{NS}[$i];
+	}
+	debug "NS match = $ns_match";
+	my @glue = @{api_get('domain.host.list')};
+	my $glue_match = @glue == scalar keys %{$d{glue}};
+	for my $ns (sort { $a->{name} cmp $b->{name} } @glue) {
+		$glue_match = 0 unless $d{glue}{$ns};
+		my @a = sort @{$ns->{ips}};
+		for my $i (0 .. $#a) {
+			debug "$ns A $a[$i]"    if $a[$i] =~ $Superglue::re_ipv4;
+			debug "$ns AAAA $a[$i]" if $a[$i] =~ $Superglue::re_ipv6;
+			$glue_match = 0 if $glue_match
+			    and $a[$i] ne $d{glue}{$ns}[$i];
+		}
+	}
+	debug "glue match = $glue_match";
 }
-my @glue = @{api_get('domain.host.list')};
-for my $ns (sort { $a->{name} cmp $b->{name} } @glue) {
-	for my $a (sort @{$ns->{ips}}) {
-		debug "$ns A $a"    if $a =~ $Superglue::re_ipv4;
-		debug "$ns AAAA $a" if $a =~ $Superglue::re_ipv6;
+if ($d{DNSKEY}) {
+	my @keys = @{api_get('domain.dnssec.list')};
+	for my $key (@keys) {
+		debug "$opt{zone} DNSKEY $key->{flags} 3 $key->{algorithm} $key->{public_key}";
 	}
 }
-my @keys = @{api_get('domain.dnssec.list')};
-for my $key (@keys) {
-	debug "$opt{zone} DNSKEY $key->{flags} 3 $key->{algorithm} $key->{public_key}";
-}
-
 
 __END__
 
