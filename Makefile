@@ -30,7 +30,8 @@ XMLRPCsrc=${SG}/${XMLRPCver}/lib/XML/RPC.pm
 
 ${XMLRPC}: ${XMLRPCsrc}
 	: easier than faffing with Makefile.PL
-	install -m 0644 ${XMLRPCsrc} ${SG}/perl5/XML
+	mkdir -p ${SG}/perl5/XML
+	install -m 0644 ${XMLRPCsrc} ${XMLRPC}
 
 ${XMLRPCsrc}: ${SG}/${XMLRPCtgz}
 	cd ${SG} && tar xf ${XMLRPCtgz}
