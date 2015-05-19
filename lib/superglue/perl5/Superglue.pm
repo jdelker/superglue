@@ -128,14 +128,14 @@ sub read_delegation {
 		$owner = parse_dname $z, $1 if $1 ne '';
 		$type = $2;
 		$rdata = $3;
-		if (m{^(NS|DS|DNSKEY)$}) {
+		if ($type =~ m{^(NS|DS|DNSKEY)$}) {
 			sdie "$z:$.: $_ RRs must be owned by $z"
 			    unless $owner eq $z;
 			$rdata = $check{$_}->();
 			$d{$_} = [] unless $d{$_};
 			push @{$d{$_}}, $rdata;
 			debug "parse $z $_ $rdata";
-		} elsif (m{^(A|AAAA)$}) {
+		} elsif ($type =~ m{^(A|AAAA)$}) {
 			sdie "$z:$.: glue $_ records must be subdomains of $z"
 			    unless $owner =~ $subdomain;
 			$d{glue}{$owner} = [] unless $d{glue}{$owner};
