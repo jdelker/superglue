@@ -24,27 +24,35 @@ sub api_get {
 }
 
 if ($d{NS}) {
-	my @ns = @{api_get('domain.info')->{nameservers}};
+	my @ns = sort @{api_get('domain.info')->{nameservers}};
 	my $ns_match = @ns == @{$d{NS}};
 	for my $i (0 .. $#ns) {
 		debug "$opt{zone} NS $ns[$i]";
 		$ns_match = 0 if $ns[$i] ne $d{NS}[$i];
 	}
 	debug "NS match?", $ns_match ? 'yes' : 'no';
+	# the domain.nameservers.set method can create glue in bulk
+	# using the nameservers_ips option, but it cannot update nor
+	# delete it, so it is easier to handle glue individually
+	my (%add,%mod,%del);
 	my @glue = @{api_get('domain.host.list')};
-	my $glue_match = @glue == scalar keys %{$d{glue}};
-	my @del;
-	for my $ns (sort { $a->{name} cmp $b->{name} } @glue) {
+	%add = %{$d{glue}};
+	for my $ns (@glue) {
 		my $name = $ns->{name};
-		$glue_match = 0 unless $d{glue}{$name};
-		my @a = sort @{$ns->{ips}};
-		for my $i (0 .. $#a) {
-			debug "$ns A $a[$i]"    if $a[$i] =~ $Superglue::re_ipv4;
-			debug "$ns AAAA $a[$i]" if $a[$i] =~ $Superglue::re_ipv6;
-			$glue_match = 0 if exists $d{glue}{$name}
-			    and $a[$i] ne $d{glue}{$name}[$i];
+		my $new_ips = delete $add{$name};
+		if (not defined $new_ips) {
+			$del{$name} = 1;
+			next;
 		}
-		push @del, $name unless exists $d{glue}{$name};
+		my @old_ip = sort @{$ns->{ips}};
+		my @new_ip = @{$new_ips};
+		my $match = @old_ip == @new_ip;
+		for my $i (0 .. $#old_ip) {
+			debug "$ns A $old_ip[$i]"    if $old_ip[$i] =~ $Superglue::re_ipv4;
+			debug "$ns AAAA $old_ip[$i]" if $old_ip[$i] =~ $Superglue::re_ipv6;
+			$match = 0 if $match and $old_ip[$i] ne $new_ip[$i];
+		}
+		$mod{$name} = $new_ips unless $match;
 	}
 	debug "glue match?", $glue_match ? 'yes' : 'no';
 	if ($ns_match and $glue_match) {
