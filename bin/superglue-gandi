@@ -50,9 +50,37 @@ if ($d{NS}) {
 	}
 }
 if ($d{DNSKEY}) {
-	my @keys = @{api_get('domain.dnssec.list')};
-	for my $key (@keys) {
+	my (%add,%del);
+	for my $key (@{$d{DNSKEY}}) {
+		$key =~ m{^(\d+) 3 (\d+) (.*)$}
+		    or sdie "$opt{zone}: cannot parse DNSKEY $key";
+		my $f = $1;
+		my $a = $2;
+		my $pk = $3;
+		$pk =~ s{ }{}g;
+		$add{"$f $a $pk"} = { flags => $1, algorith => $2, public_key => $pk };
+	}
+	my @key = @{api_get('domain.dnssec.list')};
+	debug sprintf "got %d input keys", scalar keys %add;
+	debug sprintf "got %d existing keys", scalar @key;
+	for my $i (0 .. $#key) {
+		$key[$i]{public_key} =~ s{ }{}g;
+		my $f = $key[$i]{flags};
+		my $a = $key[$i]{algorithm};
+		my $pk = $key[$i]{public_key};
+		$del{"$f $a $pk"} = $key[$i]
+		    unless delete $add{"$f $a $pk"};
 		debug "$opt{zone} DNSKEY $key->{flags} 3 $key->{algorithm} $key->{public_key}";
+	}
+	my $nadd = scalar keys %add;
+	my $ndel = scalar keys %del;
+	debug "got $nadd keys to add";
+	debug "got $ndel unwanted keys";
+	my $key_match = $ndel == 0 && $nadd == 0;
+	debug "key match?", $key_match ? 'yes' : 'no';
+	if ($key_match) {
+		verbose "$opt{zone}: secure delegation matches";
+	} else {
 	}
 }
 
