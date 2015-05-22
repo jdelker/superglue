@@ -42,7 +42,7 @@ if ($d{NS}) {
 		$ns_match = 0 if $ns[$i] ne $d{NS}[$i];
 	}
 	debug "NS match?", $ns_match ? 'yes' : 'no';
-	my (%add,%mod,%del);
+	my (%add,%old,%new,%del);
 	my @glue = @{api_get('domain.host.list')};
 	%add = %{$d{glue}};
 	for my $ns (@glue) {
@@ -60,36 +60,67 @@ if ($d{NS}) {
 			debug "$name AAAA $old_ip[$i]" if $old_ip[$i] =~ $Superglue::re_ipv6;
 			$match = 0 if $match and $old_ip[$i] ne $new_ip[$i];
 		}
-		$mod{$name} = $new_ips unless $match;
+		unless ($match) {
+			$old{$name} = \@old_ip;
+			$new{$name} = \@new_ip;
+		}
 	}
 	my $nadd = scalar keys %add;
-	my $nmod = scalar keys %mod;
+	my $nmod = scalar keys %old; # or %new
 	my $ndel = scalar keys %del;
 	debug "glue changes: create $nadd update $nmod delete $ndel";
 	if ($ns_match and $nadd == 0 and $nmod == 0 and $ndel == 0) {
 		verbose "$opt{zone}: name server delegation matches";
 	} else {
-		# the domain.nameservers.set method can create glue in bulk
-		# using the nameservers_ips option, but it cannot update nor
-		# delete it, so we have to handle those cases individually
-		for my $ns (sort keys %mod) {
-			api_set 'domain.host.update', $ns, $mod{$ns};
-			swarn "$opt{zone} update glue $ns @{$mod{$ns}}"
-		}
-		for my $ns (sort keys %add) {
-			api_set 'domain.host.create', $ns, $add{$ns};
-			swarn "$opt{zone} create glue $ns @{$add{$ns}}"
-		}
-		api_set 'domain.nameservers.set', $opt{zone}, $d{NS};
+		# The domain.nameservers.set method can create glue in bulk
+		# using the nameservers_ips option. It fails if you do not
+		# supply necessary glue, but you can omit glue that already
+		# exists in the registry (e.g. from a domain.host.create
+		# call). It also fails if you supply glue which does not
+		# match what is already in the registry: in that case you
+		# have to call the domain.host.update method. It does not
+		# delete glue for nameservers that you omit from the call;
+		# you also have to do that separately.
+		#
+		# The domain.host.update method can return before the
+		# update has completed, which can make the subsequent
+		# domain.nameservers.set call fail because the IP addresses
+		# are inconsistent. To avoid this problem, we first update
+		# the nameserver list, creating any new glue that we need.
+		# After that we do any glue modifications and deletions
+		# that are required, so we don't have to wait for the
+		# change to complete. (As far as I can tell the API doesn't
+		# provide any particularly good way to find out if/when an
+		# operation completed.)
+		#
+		# TODO: Is it possible for stray glue to exist but not be
+		# returned by domain.host.list? That would cause a failure
+		# when we try to create glue which actually needs to be
+		# modified.
+		#
+		# TODO We might need to ignore errors when deleting glue,
+		# because host objects might be required by multiple
+		# domains.
+		my %set;
+		$set{$_} = $add{$_} for keys %add;
+		$set{$_} = $old{$_} for keys %old;
+		api_set 'domain.nameservers.set', $opt{zone},
+		    $d{NS}, { nameservers_ips => \%set };
 		swarn "$opt{zone} old NS records";
 		swarn "$opt{zone} NS $_" for @ns;
 		swarn "$opt{zone} new NS records";
 		swarn "$opt{zone} NS $_" for @{$d{NS}};
+		swarn "$opt{zone} create glue records";
+		swarn "$_ -> @{$add{$_}}" for keys %add;
+		swarn "$opt{zone} update glue records";
+		for my $ns (sort keys %new) {
+			api_set 'domain.host.update', $ns, $new{$ns};
+			swarn "$ns -> @{$new{$ns}}"
+		}
+		swarn "$opt{zone} delete glue records";
 		for my $ns (sort keys %del) {
-			# TODO need to ignore errors here because host
-			# objects may be required by multiple domains
 			api_set 'domain.host.delete', $ns;
-			swarn "delete glue $ns"
+			swarn "$ns -> nodata"
 		}
 	}
 }
