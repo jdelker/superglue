@@ -29,8 +29,8 @@ sub api_set {
 	print STDERR "$method => ", Dumper([$r]) if $opt{debug};
 	sdie "$opt{zone} $method: $r->{faultString}"
 	    if ref $r eq HASH and $r->{faultString};
-	sdie "$opt{zone} $method: $r->{errorType}->{name} ($r->{errorType}->{type})"
-	    if ref $r eq HASH and $r->{errorType};
+	sdie "$opt{zone} $method: $r->{errortype}->{name} ($r->{errortype}->{type})"
+	    if ref $r eq HASH and $r->{errortype};
 	return $r;
 }
 
@@ -66,7 +66,7 @@ if ($d{NS}) {
 		}
 	}
 	my $nadd = scalar keys %add;
-	my $nmod = scalar keys %old; # or %new
+	my $nmod = scalar keys %old; # same as %new
 	my $ndel = scalar keys %del;
 	debug "glue changes: create $nadd update $nmod delete $ndel";
 	if ($ns_match and $nadd == 0 and $nmod == 0 and $ndel == 0) {
@@ -87,41 +87,54 @@ if ($d{NS}) {
 		# domain.nameservers.set call fail because the IP addresses
 		# are inconsistent. To avoid this problem, we first update
 		# the nameserver list, creating any new glue that we need.
-		# After that we do any glue modifications and deletions
-		# that are required, so we don't have to wait for the
-		# change to complete. (As far as I can tell the API doesn't
-		# provide any particularly good way to find out if/when an
-		# operation completed.)
+		# After that we do any glue modifications that are required,
+		# so we don't have to wait for the change to complete.
 		#
-		# TODO: Is it possible for stray glue to exist but not be
-		# returned by domain.host.list? That would cause a failure
-		# when we try to create glue which actually needs to be
-		# modified.
+		# For similar we need to ignore errors when deleting
+		# glue, because of the delayed completion of the
+		# domain.nameservers.set method. (As far as I can tell the
+		# API doesn't provide any particularly good way to find out
+		# if/when an operation completed.)
 		#
-		# TODO We might need to ignore errors when deleting glue,
-		# because host objects might be required by multiple
-		# domains.
+		# TODO: It is possible for domain.nameservers.set to appear
+		# to succeed but to quietly have no effect. This can happen
+		# if the registry requires host objects to exist for any
+		# nameservers that are under the registry's TLD. If this zone
+		# has nameservers in a sibling zone, then updating this zone
+		# will fail until the sibling zone is updated with matching
+		# nameservers. Not sure what to do about this...
 		my %set;
 		$set{$_} = $add{$_} for keys %add;
 		$set{$_} = $old{$_} for keys %old;
 		api_set 'domain.nameservers.set', $opt{zone},
-		    $d{NS}, { nameservers_ips => \%set };
-		swarn "$opt{zone} old NS records";
-		swarn "$opt{zone} NS $_" for @ns;
-		swarn "$opt{zone} new NS records";
-		swarn "$opt{zone} NS $_" for @{$d{NS}};
-		swarn "$opt{zone} create glue records";
-		swarn "$_ -> @{$add{$_}}" for keys %add;
-		swarn "$opt{zone} update glue records";
+		    $d{NS}, { nameservers_ips => \%set }
+			unless $opt{'not-really'};
+		unless ($ns_match) {
+			swarn "$opt{zone} old NS records";
+			swarn "$opt{zone} NS $_" for @ns;
+			swarn "$opt{zone} new NS records";
+			swarn "$opt{zone} NS $_" for @{$d{NS}};
+		}
+		if ($nadd or $nmod or $ndel) {
+			swarn "$opt{zone} alter glue";
+		}
+		for my $ns (sort keys %add) {
+			swarn "$ns create @{$add{$ns}}";
+		}
 		for my $ns (sort keys %new) {
-			api_set 'domain.host.update', $ns, $new{$ns};
-			swarn "$ns -> @{$new{$ns}}"
+			api_set 'domain.host.update', $ns, $new{$ns}
+			    unless $opt{'not-really'};
+			swarn "$ns update @{$new{$ns}}"
 		}
-		swarn "$opt{zone} delete glue records";
 		for my $ns (sort keys %del) {
-			api_set 'domain.host.delete', $ns;
-			swarn "$ns -> nodata"
+
+			#my @ns = sort @{api_get('domain.info')->{nameservers}};
+
+			api_set 'domain.host.delete', $ns
+			    unless $opt{'not-really'};
+			swarn "$ns delete"
 		}
+		swarn "Not really!" if $opt{'not-really'};
 	}
 }
 if ($d{DNSKEY}) {
