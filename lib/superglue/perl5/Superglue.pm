@@ -73,7 +73,7 @@ sub getopt {
 	  unless $opt{zone} =~ $re_dname;
 
 	redefine 'debug',   \&ScriptDie::swarn if $opt{debug};
-	redefine 'verbose', \&ScriptDie::swarn if $opt{verbose};
+	redefine 'verbose', \&ScriptDie::swarn if $opt{debug} or $opt{verbose};
 
 	return %opt;
 }

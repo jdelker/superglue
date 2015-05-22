@@ -18,8 +18,19 @@ my $api = XML::RPC->new($creds{url});
 sub api_get {
 	my $method = shift;
 	$r = $api->call($method, $creds{apikey}, $opt{zone});
+	print STDERR "$method => ", Dumper([$r]) if $opt{debug};
 	sdie "$opt{zone} $method: $r->{faultString}"
 	    if ref $r eq HASH and $r->{faultString};
+	return $r;
+}
+sub api_set {
+	my $method = shift;
+	$r = $api->call($method, $creds{apikey}, @_);
+	print STDERR "$method => ", Dumper([$r]) if $opt{debug};
+	sdie "$opt{zone} $method: $r->{faultString}"
+	    if ref $r eq HASH and $r->{faultString};
+	sdie "$opt{zone} $method: $r->{errorType}->{name} ($r->{errorType}->{type})"
+	    if ref $r eq HASH and $r->{errorType};
 	return $r;
 }
 
@@ -31,9 +42,6 @@ if ($d{NS}) {
 		$ns_match = 0 if $ns[$i] ne $d{NS}[$i];
 	}
 	debug "NS match?", $ns_match ? 'yes' : 'no';
-	# the domain.nameservers.set method can create glue in bulk
-	# using the nameservers_ips option, but it cannot update nor
-	# delete it, so it is easier to handle glue individually
 	my (%add,%mod,%del);
 	my @glue = @{api_get('domain.host.list')};
 	%add = %{$d{glue}};
@@ -48,16 +56,41 @@ if ($d{NS}) {
 		my @new_ip = @{$new_ips};
 		my $match = @old_ip == @new_ip;
 		for my $i (0 .. $#old_ip) {
-			debug "$ns A $old_ip[$i]"    if $old_ip[$i] =~ $Superglue::re_ipv4;
-			debug "$ns AAAA $old_ip[$i]" if $old_ip[$i] =~ $Superglue::re_ipv6;
+			debug "$name A $old_ip[$i]"    if $old_ip[$i] =~ $Superglue::re_ipv4;
+			debug "$name AAAA $old_ip[$i]" if $old_ip[$i] =~ $Superglue::re_ipv6;
 			$match = 0 if $match and $old_ip[$i] ne $new_ip[$i];
 		}
 		$mod{$name} = $new_ips unless $match;
 	}
-	debug "glue match?", $glue_match ? 'yes' : 'no';
-	if ($ns_match and $glue_match) {
+	my $nadd = scalar keys %add;
+	my $nmod = scalar keys %mod;
+	my $ndel = scalar keys %del;
+	debug "glue changes: create $nadd update $nmod delete $ndel";
+	if ($ns_match and $nadd == 0 and $nmod == 0 and $ndel == 0) {
 		verbose "$opt{zone}: name server delegation matches";
 	} else {
+		# the domain.nameservers.set method can create glue in bulk
+		# using the nameservers_ips option, but it cannot update nor
+		# delete it, so we have to handle those cases individually
+		for my $ns (sort keys %mod) {
+			api_set 'domain.host.update', $ns, $mod{$ns};
+			swarn "$opt{zone} update glue $ns @{$mod{$ns}}"
+		}
+		for my $ns (sort keys %add) {
+			api_set 'domain.host.create', $ns, $add{$ns};
+			swarn "$opt{zone} create glue $ns @{$add{$ns}}"
+		}
+		api_set 'domain.nameservers.set', $opt{zone}, $d{NS};
+		swarn "$opt{zone} old NS records";
+		swarn "$opt{zone} NS $_" for @ns;
+		swarn "$opt{zone} new NS records";
+		swarn "$opt{zone} NS $_" for @{$d{NS}};
+		for my $ns (sort keys %del) {
+			# TODO need to ignore errors here because host
+			# objects may be required by multiple domains
+			api_set 'domain.host.delete', $ns;
+			swarn "delete glue $ns"
+		}
 	}
 }
 if ($d{DNSKEY}) {
