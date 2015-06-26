@@ -26,48 +26,11 @@ ${CASPERJS}:
 	${CASPERJS}/bin/casperjs --version
 
 # Gandi recommend this version. Old code so should be pretty stable.
+${XMLRPC}:
+	Makestuff/get-perl ${XMLRPC} 0.9
 
-XMLRPCver=XML-RPC-0.9
-XMLRPCtgz=${XMLRPCver}.tar.gz
-XMLRPCsrc=${SG}/${XMLRPCver}/lib/XML/RPC.pm
+${XMLtreePP}:
+	Makestuff/get-perl ${XMLtreePP} 0.43
 
-${XMLRPC}: ${XMLRPCsrc}
-	: easier than faffing with Makefile.PL
-	mkdir -p ${pl}/XML
-	install -m 0644 ${XMLRPCsrc} ${XMLRPC}
-
-${XMLRPCsrc}: ${SG}/${XMLRPCtgz}
-	cd ${SG} && tar xf ${XMLRPCtgz}
-
-${SG}/${XMLRPCtgz}:
-	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/XML/${XMLRPCtgz}
-
-XMLtreePPver=XML-TreePP-0.43
-XMLtreePPtgz=${XMLtreePPver}.tar.gz
-XMLtreePPsrc=${SG}/${XMLtreePPver}/lib/XML/TreePP.pm
-
-${XMLtreePP}: ${XMLtreePPsrc}
-	: easier than faffing with Makefile.PL
-	mkdir -p ${pl}/XML
-	install -m 0644 ${XMLtreePPsrc} ${XMLtreePP}
-
-${XMLtreePPsrc}: ${SG}/${XMLtreePPtgz}
-	cd ${SG} && tar xf ${XMLtreePPtgz}
-
-${SG}/${XMLtreePPtgz}:
-	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/XML/${XMLtreePPtgz}
-
-JSONPPver=JSON-PP-2.27300
-JSONPPtgz=${JSONPPver}.tar.gz
-JSONPPsrc=${SG}/${JSONPPver}/lib/JSON/PP.pm
-
-${JSONPP}: ${JSONPPsrc}
-	: easier than faffing with Makefile.PL
-	mkdir -p ${pl}/JSON
-	install -m 0644 ${JSONPPsrc} ${JSONPP}
-
-${JSONPPsrc}: ${SG}/${JSONPPtgz}
-	cd ${SG} && tar xf ${JSONPPtgz}
-
-${SG}/${JSONPPtgz}:
-	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/JSON/${JSONPPtgz}
+${JSONPP}:
+	Makestuff/get-perl ${JSONPP} 2.27300

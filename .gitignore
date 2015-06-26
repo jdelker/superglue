@@ -1,3 +1,4 @@
+Maketmp
 lib/superglue/casperjs
 lib/superglue/perl5/XML
-lib/superglue/XML-RPC*
+lib/superglue/perl5/JSON
