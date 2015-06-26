@@ -3,14 +3,16 @@
 # At the moment this just sets up dependencies
 
 SG=lib/superglue
+pl=${SG}/perl5
 
 # Dependencies managed by us go inside our library directory
 # to avoid colliding with other versions.
 CASPERJS=${SG}/casperjs
-XMLRPC=${SG}/perl5/XML/RPC.pm
-XMLtreePP=${SG}/perl5/XML/TreePP.pm
+XMLRPC=${pl}/XML/RPC.pm
+XMLtreePP=${pl}/XML/TreePP.pm
+JSONPP=${pl}/JSON/PP.pm
 
-all: ${CASPERJS} ${XMLRPC} ${XMLtreePP}
+all: ${CASPERJS} ${XMLRPC} ${XMLtreePP} ${JSONPP}
 
 # Pick a fixed revision of CasperJS for stability. The most recent tag
 # is 1.1-beta3 dated 29 Nov 2013 - it would be nice if they could spin
@@ -31,7 +33,7 @@ XMLRPCsrc=${SG}/${XMLRPCver}/lib/XML/RPC.pm
 
 ${XMLRPC}: ${XMLRPCsrc}
 	: easier than faffing with Makefile.PL
-	mkdir -p ${SG}/perl5/XML
+	mkdir -p ${pl}/XML
 	install -m 0644 ${XMLRPCsrc} ${XMLRPC}
 
 ${XMLRPCsrc}: ${SG}/${XMLRPCtgz}
@@ -46,7 +48,7 @@ XMLtreePPsrc=${SG}/${XMLtreePPver}/lib/XML/TreePP.pm
 
 ${XMLtreePP}: ${XMLtreePPsrc}
 	: easier than faffing with Makefile.PL
-	mkdir -p ${SG}/perl5/XML
+	mkdir -p ${pl}/XML
 	install -m 0644 ${XMLtreePPsrc} ${XMLtreePP}
 
 ${XMLtreePPsrc}: ${SG}/${XMLtreePPtgz}
@@ -54,3 +56,18 @@ ${XMLtreePPsrc}: ${SG}/${XMLtreePPtgz}
 
 ${SG}/${XMLtreePPtgz}:
 	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/XML/${XMLtreePPtgz}
+
+JSONPPver=JSON-PP-2.27300
+JSONPPtgz=${JSONPPver}.tar.gz
+JSONPPsrc=${SG}/${JSONPPver}/lib/JSON/PP.pm
+
+${JSONPP}: ${JSONPPsrc}
+	: easier than faffing with Makefile.PL
+	mkdir -p ${pl}/JSON
+	install -m 0644 ${JSONPPsrc} ${JSONPP}
+
+${JSONPPsrc}: ${SG}/${JSONPPtgz}
+	cd ${SG} && tar xf ${JSONPPtgz}
+
+${SG}/${JSONPPtgz}:
+	cd ${SG} && curl -O http://www.cpan.org/modules/by-module/JSON/${JSONPPtgz}
