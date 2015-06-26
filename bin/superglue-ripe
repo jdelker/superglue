@@ -1,0 +1,102 @@
+#!/usr/bin/perl
+#
+# This uses the RIPE JSON REST API.
+#
+# RIPE's whois REST API has XML and JSON versions. They are both
+# somewhat unidiomatic in the way they represent RIPE objects in
+# their serialization format, which is a bit nasty.
+#
+# I would quite like to use the syncupdates API because it is nice and
+# simple, but there isn't a corresponding secure query API.
+
+use warnings;
+use strict;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib/superglue/perl5";
+
+use Data::Dumper;
+use JSON::PP;
+use LWP::UserAgent;
+use ScriptDie;
+use Superglue;
+
+my %opt = Superglue::getopt;
+#my %creds = Superglue::load_kv $opt{creds};
+my %d = Superglue::read_delegation $opt{zone};
+
+my $ripe_url = 'https://rest.db.ripe.net/ripe/domain';
+
+my $ua = LWP::UserAgent->new( agent => 'superglue/0.0' );
+
+sub ripe_get {
+	my $domain = shift;
+	my $url = "$ripe_url/$domain?unfiltered";
+	my $r = $ua->get($url, Accept => "application/json");
+	my $body = $r->content;
+	my $code = $r->code;
+	my $message = $r->message;
+	if ($r->header('Content-Type') ne 'application/json') {
+		swarn "$code $message from $url";
+		swarn "unexpected non-JSON response";
+		swarn $body if $body;
+		exit 1;
+	}
+	my $j = decode_json $r->content;
+	if ($code eq "200") {
+		delete $j->{'terms-and-conditions'};
+		my @obj = @{ $j->{objects}->{object}
+		    ->[0]->{attributes}->{attribute} };
+		return @obj if defined $obj[0]->{value}
+		    and $obj[0]->{value} eq $domain;
+		swarn "$code $message from $url";
+		swarn "could not find expected domain in JSON response";
+		swarn $body if $body;
+		exit 1;
+	}
+	swarn "$code $message from $url";
+	for my $e (@{ $j->{errormessages}->{errormessage} }) {
+		my $text = $e->{text};
+		$text =~ s/%s/$_->{value}/ for @{ $e->{args} };
+		swarn $text;
+		undef $body;
+	}
+	swarn $body if $body;
+	exit 1;
+}
+
+my @old = ripe_get($opt{zone});
+
+debug Dumper \@old;
+
+my @ns;
+my @ds;
+
+for my $a (@old) {
+	push @ns, $a->{value} if $a->{name} eq 'nserver';
+	push @ds, $a->{value} if $a->{name} eq 'ds-rdata';
+}
+
+@ns = sort map lc, @ns;
+@ds = sort @ds;
+
+print map "$_\n", @ns;
+print map "$_\n", @ds;
+print map "$_\n", @{$d{NS}};
+print map "$_\n", @{$d{DS}};
+
+__END__
+
+=head1 NAME
+
+superglue-ripe - synchronize DNS delegation with RIPE
+
+=head1 SYNOPSIS
+
+B<superglue-ripe> [B<--debug>|B<-d>] [B<--verbose>|B<-v>]
+    [B<--not-really>|B<-n>] B<--creds>=I<file>|B<-c>I<file> I<domain>
+
+B<superglue-ripei> B<-h>|B<--help>
+
+=head1 DESCRIPTION
+
