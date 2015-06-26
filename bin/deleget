@@ -16,7 +16,6 @@ usage() {
 	echo 1>&2 "	-a auth		Server for authoritative queries"
 	echo 1>&2 "	-r rec		Server for recursive queries"
 	echo 1>&2 "	-s ns		Server for all queries"
-	echo 1>&2 "	-s ns		Server for all queries"
 	echo 1>&2 ""
 	echo 1>&2 "The deleget program prints a DNS zone's delegation records"
 	echo 1>&2 "(NS, DS, and glue addresses) in standard master file format."
@@ -62,6 +61,13 @@ s='[ 	][ 	]*'
 
 p() {
 	printf "%s" "$*"
+}
+pn() {
+	case "$*" in
+	('')	;;
+	(*)	p "$*"
+		echo
+	esac
 }
 
 nodata_error=true
@@ -114,7 +120,7 @@ then
 		dnssec-dsfromkey -2 -f /dev/stdin "$zone")
 fi
 
-echo "$NS"
-echo "$GLUE"
-echo "$DNSKEY"
-echo "$DS"
+pn "$NS"
+pn "$GLUE"
+pn "$DNSKEY"
+pn "$DS"
