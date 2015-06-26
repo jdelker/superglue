@@ -3,16 +3,34 @@
 # At the moment this just sets up dependencies
 
 SG=lib/superglue
-pl=${SG}/perl5
 
 # Dependencies managed by us go inside our library directory
 # to avoid colliding with other versions.
-CASPERJS=${SG}/casperjs
-XMLRPC=${pl}/XML/RPC.pm
-XMLtreePP=${pl}/XML/TreePP.pm
-JSONPP=${pl}/JSON/PP.pm
+
+pl	  =	${SG}/perl5
+pltmp	  =	${pl}/JSON ${pl}/XML
+
+# for JANET
+CASPERJS  =	${SG}/casperjs
+
+# for RIPE
+JSONPP    =	${pl}/JSON/PP.pm
+
+# for Gandi
+XMLRPC    =	${pl}/XML/RPC.pm
+XMLtreePP =	${pl}/XML/TreePP.pm
+
 
 all: ${CASPERJS} ${XMLRPC} ${XMLtreePP} ${JSONPP}
+
+clean:
+	rm -rf ${pltmp}
+	rm -rf Maketmp/*[0-9]
+
+realclean:
+	rm -rf ${CASPERJS}
+	rm -rf ${pltmp}
+	rm -rf Maketmp
 
 # Pick a fixed revision of CasperJS for stability. The most recent tag
 # is 1.1-beta3 dated 29 Nov 2013 - it would be nice if they could spin
@@ -25,12 +43,11 @@ ${CASPERJS}:
 	: CasperJS smoke test
 	${CASPERJS}/bin/casperjs --version
 
-# Gandi recommend this version. Old code so should be pretty stable.
+${JSONPP}:
+	Makestuff/get-perl ${JSONPP} 2.27300
+
 ${XMLRPC}:
 	Makestuff/get-perl ${XMLRPC} 0.9
 
 ${XMLtreePP}:
 	Makestuff/get-perl ${XMLtreePP} 0.43
-
-${JSONPP}:
-	Makestuff/get-perl ${JSONPP} 2.27300
