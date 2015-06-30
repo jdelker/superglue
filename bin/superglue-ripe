@@ -1,13 +1,4 @@
 #!/usr/bin/perl
-#
-# This uses the RIPE JSON REST API.
-#
-# RIPE's whois REST API has XML and JSON versions. They are both
-# somewhat unidiomatic in the way they represent RIPE objects in
-# their serialization format, which is a bit nasty.
-#
-# I would quite like to use the syncupdates API because it is nice and
-# simple, but there isn't a corresponding secure query API.
 
 use warnings;
 use strict;

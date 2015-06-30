@@ -1,13 +1,27 @@
 Superglue: automatically synchronize DNS delegations
 ====================================================
 
-Superglue is a suite of programs for updating the delegation in a
-parent zone so that it is consistent with the contents of the child
+Superglue ensures your domain's delegation is correct.
+
+Using a registry or registrar API, it updates the delegation in your
+parent zone so that it is consistent with the contents of your child
 zone.
 
-There are multiple programs for updating delegations, which vary
-depending on the API used to communicate with the zone's registrar
-or registry.
+The name comes from superordinate + glue, though of course superglue
+updates NS and DS records as well.
+
+Superglue has a separate program for talking to each API. All the
+programs work in a consistent manner. Currently superglue includes
+clients for:
+
+	Gandi
+	JANET (forward and reverse DNS)
+	RIPE (reverse DNS)
+
+Superglue just deals with DNS delegations. It does not handle other
+aspects of domain registration, such as renewals or updating contact
+details.
+
 
 Installation
 ------------
@@ -15,11 +29,12 @@ Installation
 You can run superglue from a git checkout. (There is not yet a way to
 install superglue in a standard location.)
 
-You will need PhantomJS 1.9. The version that comes with Ubuntu 14.04
-is suitable.
+Run `make` to do the build and setup tasks. This downloads a few Perl
+modules and a copy of CasperJS.
 
-Run `make` to do the build and setup tasks. At the moment this just
-obtains a copy of CasperJS for use by superglue-janet.
+For superglue-janet you will also need PhantomJS 1.9. The version that
+comes with Ubuntu 14.04 is suitable.
+
 
 Input format
 ------------
@@ -28,17 +43,18 @@ Every superglue program reads delegation records in a subset of
 standard RFC 1035 master file format. TTLs are ignored; `$` directives,
 `\` escapes, "strings", and `()` continuations are not supported.
 
-The input can contain NS records, DS records, or both. The owner name
-of these records must match the zone. The default owner and `$ORIGIN`
-are set to the zone name so you can abbreviate the input using omitted
-or unqualified domain names in the standard way.
+The input can contain NS records, DNSKEY records, or both. The owner
+name of these records must match the zone. The default owner and
+`$ORIGIN` are set to the zone name so you can abbreviate the input
+using omitted or unqualified domain names in the standard way.
 
-If the NS RRset or DS RRset are missing, that part of the delegation
-is left alone, so it isn't possible to use superglue to delete a
-delegation or make a zone insecure.
+If the NS RRset or DNSKEY RRset are missing, that part of the
+delegation is left alone, so it isn't possible to use superglue to
+delete a delegation or make a zone insecure.
 
 If the NS record targets include hostnames at or below the zone name
 then glue A and/or AAAA records are required.
+
 
 Login credentials
 -----------------
@@ -53,6 +69,7 @@ Different superglue programs use different keywords depending on the
 requirements of the API they use. Most of them need `user` and `pass`
 credentials.
 
+
 deleget
 -------
 
@@ -61,12 +78,20 @@ that can be passed to `superglue` to update the delegation in the parent
 zone. This is useful if your DNS provisioning system can't emit the
 delegation records itself.
 
+
 superglue
 ---------
 
 The umbrella `superglue` program works out how a domain was registered
 and therefore which sub-program should be used to update its delegation.
 (Not yet written.)
+
+
+superglue-gandi
+---------------
+
+Gandi has an XML-RPC API for controlling all their services.
+
 
 superglue-janet
 ---------------
@@ -76,3 +101,17 @@ JavaScript-heavy web site <https://naming.ja.net/dns/>. The
 `superglue-janet` program uses PhantomJS and CasperJS to drive the web
 site using mainly its HTML id=... attributes. We hope these will be
 reasonably stable!
+
+
+superglue-ripe
+---------------
+
+You can update the RIPE database by sending whois objects via email,
+by "syncupdates" https POST, or using their REST API in XML or JSON
+style. This uses the RIPE REST JSON API.
+
+The syncupdates interface is nice and simple, but there isn't a
+corresponding authenticated query API - RIPE whois only offers
+insecure connections. The REST APIs both have an ugly way of
+representing object attributes, like name=nserver value=ns.example.com
+instead of nserver=ns.example.com. But apart from that they are OK.
