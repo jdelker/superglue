@@ -1,5 +1,7 @@
 package Superglue;
 
+# TODO: sub compare_delegation
+
 use warnings;
 use strict;
 
