@@ -101,7 +101,7 @@ sub read_delegation {
 	my $z = shift;
 	my $qz = quotemeta $z;
 	my $subdomain = qr{(^|\.)$qz$};
-	my %d;
+	my %d = ( zone => $z );
 	sub parse_dname {
 		my $origin = shift;
 		my $n = lc shift;
@@ -184,6 +184,14 @@ sub read_delegation {
 		$d{DS} = [sort @{$d{DS}}];
 	}
 	return %d;
+}
+
+sub glueless_delegation {
+	my %d = @_;
+	my $glue = $d{glue};
+	my $nglue = scalar keys %$glue;
+	return if $nglue == 0;
+	sdie "$d{zone}: no glue allowed for this delegation";
 }
 
 1;

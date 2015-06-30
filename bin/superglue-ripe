@@ -7,53 +7,87 @@ use FindBin;
 use lib "$FindBin::Bin/../lib/superglue/perl5";
 
 use Data::Dumper;
+use Deep;
 use JSON::PP;
 use LWP::UserAgent;
 use ScriptDie;
 use Superglue;
 
 my %opt = Superglue::getopt;
+my $z = $opt{zone};
+
 #my %creds = Superglue::load_kv $opt{creds};
-my %d = Superglue::read_delegation $opt{zone};
+my %d = Superglue::read_delegation $z;
+
+Superglue::glueless_delegation %d;
 
 my $ripe_url = 'https://rest.db.ripe.net/ripe/domain';
 
 my $ua = LWP::UserAgent->new( agent => 'superglue/0.0' );
 
-sub ripe_get {
-	my $domain = shift;
-	my $url = "$ripe_url/$domain?unfiltered";
-	my $r = $ua->get($url, Accept => "application/json");
+sub ripe_error {
+	my $r = shift;
+	my $error = shift;
 	my $body = $r->content;
 	my $code = $r->code;
 	my $message = $r->message;
-	if ($r->header('Content-Type') ne 'application/json') {
-		swarn "$code $message from $url";
-		swarn "unexpected non-JSON response";
-		swarn $body if $body;
-		exit 1;
-	}
-	my $j = decode_json $r->content;
-	if ($code eq "200") {
-		delete $j->{'terms-and-conditions'};
-		my @obj = @{ $j->{objects}->{object}
-		    ->[0]->{attributes}->{attribute} };
-		return @obj if defined $obj[0]->{value}
-		    and $obj[0]->{value} eq $domain;
-		swarn "$code $message from $url";
-		swarn "could not find expected domain in JSON response";
-		swarn $body if $body;
-		exit 1;
-	}
+	my @r = $r->redirects;
+	$r[0] = $r if not @r;
+	my $url = $r[0]->request->uri;
 	swarn "$code $message from $url";
+	swarn $error if $error;
+	swarn $body if $body;
+	exit 1;
+}
+
+sub ripe_request {
+	my $req = shift;
+	my $r = $ua->request($req);
+	my $body = $r->content;
+	my $code = $r->code;
+	my $message = $r->message;
+	ripe_error $r, "unexpected non-JSON response"
+	    if $r->header('Content-Type') ne 'application/json';
+	my $j = decode_json $r->content;
+	delete $j->{'terms-and-conditions'};
+	return ($r,$j) if $code eq "200";
+	my @error;
 	for my $e (@{ $j->{errormessages}->{errormessage} }) {
 		my $text = $e->{text};
 		$text =~ s/%s/$_->{value}/ for @{ $e->{args} };
-		swarn $text;
-		undef $body;
+		push @error, $text;
 	}
-	swarn $body if $body;
-	exit 1;
+	$r->content(join '\n', @error) if @error;
+	ripe_error $r;
+}
+
+sub ripe_get {
+	my $domain = shift;
+	my $url = "$ripe_url/$domain?unfiltered";
+	my $req = HTTP::Request->new( GET => $url,
+		[ 'Accept' => 'application/json' ]);
+	my ($r,$j) = ripe_request $req;
+	my @obj = @{ $j->{objects}->{object}
+		  ->[0]->{attributes}->{attribute} };
+	return @obj if defined $obj[0]->{value}
+	    and $obj[0]->{value} eq $domain;
+	ripe_error $r, "could not find expected domain in JSON response";
+}
+
+sub ripe_put {
+	my $domain = shift;
+	my $password = shift;
+	my $url = "$ripe_url/$domain?password=$password";
+	$url .= "&dry-run=true" if $opt{'not-really'};
+	my $obj = { objects    => { object    => [
+		  { attributes => { attribute => \@_
+		} } ] } };
+	my $req = HTTP::Request->new( PUT => $url,
+		[ 'Content-Type' => 'application/json',
+		  'Accept' => 'application/json' ],
+		encode_json $obj);
+debug $req->content;
+	return ripe_request $req;
 }
 
 my @old = ripe_get($opt{zone});
@@ -71,10 +105,48 @@ for my $a (@old) {
 @ns = sort map lc, @ns;
 @ds = sort @ds;
 
-print map "$_\n", @ns;
-print map "$_\n", @ds;
-print map "$_\n", @{$d{NS}};
-print map "$_\n", @{$d{DS}};
+$d{NS} = \@ns unless exists $d{NS};
+$d{DS} = \@ds unless exists $d{DS};
+
+my $nseq = deepeq \@ns, $d{NS};
+my $dseq = deepeq \@ds, $d{DS};
+
+if ($nseq) {
+	verbose "$z NS records match";
+} else {
+	verbose "$z Old NS records";
+	verbose "$z NS $_" for @ns;
+	verbose "$z New NS records";
+	verbose "$z NS $_" for @{$d{NS}};
+}
+
+if ($dseq) {
+	verbose "$z DS records match" if $dseq;
+} else {
+	verbose "$z Old DS records";
+	verbose "$z DS $_" for @ds;
+	verbose "$z New DS records";
+	verbose "$z DS $_" for @{$d{DS}};
+}
+
+exit 0 if $nseq and $dseq;
+
+my @new;
+for my $a (@old) {
+	push @new, $a unless $a->{name} eq 'nserver'
+			  or $a->{name} eq 'ds-rdata';
+}
+for my $ns (@{$d{NS}}) {
+	push @new, { name => 'nserver', value => $ns };
+}
+for my $ds (@{$d{DS}}) {
+	push @new, { name => 'ds-rdata', value => $ds };
+}
+push @new, { name => 'changed', value => 'hostmaster@cam.ac.uk' };
+
+debug Dumper \@new;
+
+ripe_put $z, 'lskjda', @new;
 
 __END__
 
