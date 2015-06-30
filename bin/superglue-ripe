@@ -57,7 +57,7 @@ sub ripe_request {
 		$text =~ s/%s/$_->{value}/ for @{ $e->{args} };
 		push @error, $text;
 	}
-	$r->content(join '\n', @error) if @error;
+	$r->content(join "\n", @error) if @error;
 	ripe_error $r;
 }
 
