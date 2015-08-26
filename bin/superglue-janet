@@ -14,7 +14,7 @@ my $javascript = "$Superglue::lib/superglue-janet.js";
 my %opt = Superglue::getopt;
 
 my @loglevel;
-$loglevel[0] = '--log-level=verbose' if $opt{verbose};
+$loglevel[0] = '--log-level=info' if $opt{verbose};
 $loglevel[0] = '--log-level=debug' if $opt{debug};
 
 my @notreally;
