@@ -26,7 +26,8 @@ our @EXPORT = qw{
 our $lib = realpath("$FindBin::Bin/../lib/superglue");
 our $CasperJS = "$lib/casperjs/bin/casperjs";
 
-our $re_dname = qr/^(?:[a-z0-9][a-z0-9-]*[a-z0-9][.])+[a-z0-9][a-z0-9-]*[a-z0-9]$/;
+our $re_label = qr/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/;
+our $re_dname = qr/^(?:$re_label\.)+$re_label$/;
 our $re_ipv6 = qr/^(?:[0-9a-f]{1,4}:)+(?::|(?::[0-9a-f]{1,4})+|[0-9a-f]{1,4})$/;
 our $re_ipv4 = qr/^\d+\.\d+\.\d+\.\d+$/;
 
