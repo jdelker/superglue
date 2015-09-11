@@ -12,6 +12,9 @@ my %opt = Superglue::getopt;
 my %creds = Superglue::load_kv $opt{creds};
 my %d = Superglue::read_delegation $opt{zone};
 
+sdie "$opt{creds}: missing url in credentials" unless $creds{url};
+sdie "$opt{creds}: missing apikey in credentials" unless $creds{apikey};
+
 my $r;
 my $api = XML::RPC->new($creds{url});
 
