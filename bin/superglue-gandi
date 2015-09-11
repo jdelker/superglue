@@ -172,6 +172,7 @@ if ($d{DNSKEY}) {
 	if ($key_match) {
 		verbose "$opt{zone}: secure delegation matches";
 	} else {
+		swarn "$opt{zone}: secure delegation update not yet implemented";
 	}
 }
 
