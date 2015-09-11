@@ -67,9 +67,13 @@ if (@add or @rem) {
 	my $update_info = { name => $z };
 	$update_info->{add}->{ns} = \@add if @add;
 	$update_info->{rem}->{ns} = \@rem if @rem;
-	$epp->update_domain($update_info) or
-	    eepp "domain_update $z";
-	swarn "$z: $Net::EPP::Simple::Error $Net::EPP::Simple::Message";
+	if ($opt{'not-really'}) {
+		swarn "Not really!";
+	} else {
+		$epp->update_domain($update_info) or
+		    eepp "domain_update $z";
+		swarn "$z: $Net::EPP::Simple::Error $Net::EPP::Simple::Message";
+	}
 } else {
 	verbose "$z: name server delegation matches";
 }
