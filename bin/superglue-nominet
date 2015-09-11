@@ -40,7 +40,7 @@ my $info = $epp->domain_info($z, undef, undef);
 eepp "domain_info $z" unless defined $info;
 
 sub trim {
-	s{\.*\s*$}{.} for @_;
+	s{\.*\s*$}{} for @_;
 	return @_;
 }
 
