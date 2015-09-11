@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+use warnings;
+use strict;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib/superglue/perl5";
 
@@ -23,7 +26,7 @@ sub api_get {
 	$r = $api->call($method, $creds{apikey}, $opt{zone});
 	print STDERR "$method => ", Dumper([$r]) if $opt{debug};
 	sdie "$opt{zone} $method: $r->{faultString}"
-	    if ref $r eq HASH and $r->{faultString};
+	    if ref $r eq 'HASH' and $r->{faultString};
 	return $r;
 }
 sub api_set {
@@ -31,9 +34,9 @@ sub api_set {
 	$r = $api->call($method, $creds{apikey}, @_);
 	print STDERR "$method => ", Dumper([$r]) if $opt{debug};
 	sdie "$opt{zone} $method: $r->{faultString}"
-	    if ref $r eq HASH and $r->{faultString};
+	    if ref $r eq 'HASH' and $r->{faultString};
 	sdie "$opt{zone} $method: $r->{errortype}->{name} ($r->{errortype}->{type})"
-	    if ref $r eq HASH and $r->{errortype};
+	    if ref $r eq 'HASH' and $r->{errortype};
 	return $r;
 }
 
@@ -161,7 +164,7 @@ if ($d{DNSKEY}) {
 		my $pk = $key[$i]{public_key};
 		$del{"$f $a $pk"} = $key[$i]
 		    unless delete $add{"$f $a $pk"};
-		debug "$opt{zone} DNSKEY $key->{flags} 3 $key->{algorithm} $key->{public_key}";
+		debug "$opt{zone} DNSKEY $f 3 $a $pk";
 	}
 	my $nadd = scalar keys %add;
 	my $ndel = scalar keys %del;
