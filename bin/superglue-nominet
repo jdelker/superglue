@@ -45,7 +45,7 @@ sub trim {
 }
 
 my @apex = @{$d{NS}};
-my @deleg = @{$info->{ns}};
+my @deleg = trim @{$info->{ns}};
 debug "$z NS $_" for @deleg;
 
 my (%apex,%deleg);
