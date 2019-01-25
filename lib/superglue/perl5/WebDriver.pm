@@ -268,8 +268,11 @@ sub webdriver_init {
 				my @cmd = qw(geckodriver);
 				push @cmd, '--host' => $host;
 				push @cmd, '--port' => $port;
-				push @cmd, '--log' => 'trace'
-				    if $opt{verbose};
+				if ($opt{verbose}) {
+					push @cmd, '--log' => 'trace'
+				} else {
+					push @cmd, '--log' => 'fatal'
+				}
 				exec @cmd
 				    or die "exec @cmd: $!\n";
 			}
