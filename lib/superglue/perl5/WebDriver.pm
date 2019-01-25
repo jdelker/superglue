@@ -36,7 +36,11 @@ our @EXPORT = qw{
 	elems
 	sub_elem
 	has_elem
+	elem_attr
+	elem_prop
 	elem_text
+	elem_selected
+	clear
 	click
 	fill
 	pause
@@ -379,6 +383,36 @@ sub click {
 	return POST $url, {};
 }
 
+=item elem_attr I<LOCATOR>, I<ATTRIBUTE>
+
+Returns the I<ATTRIBUTE> of the element.
+
+=cut
+
+sub elem_attr {
+	return GET elemurl shift, 'attribute/'.shift;
+}
+
+=item elem_prop I<LOCATOR>, I<PROPERTY>
+
+Returns the I<PROPERTY> of the element.
+
+=cut
+
+sub elem_prop {
+	return GET elemurl shift, 'property/'.shift;
+}
+
+=item elem_tag I<LOCATOR>
+
+Returns the tag name of the element.
+
+=cut
+
+sub elem_tag {
+	return GET elemurl shift, 'name';
+}
+
 =item elem_text I<LOCATOR>
 
 Returns the rendered text in the element as a string.
@@ -387,6 +421,16 @@ Returns the rendered text in the element as a string.
 
 sub elem_text {
 	return GET elemurl shift, 'text';
+}
+
+=item elem_selected I<LOCATOR>
+
+Returns a boolean corresponding to whether the form element is selected.
+
+=cut
+
+sub elem_selected {
+	return GET elemurl shift, 'selected';
 }
 
 =item clear I<LOCATOR>
