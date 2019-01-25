@@ -389,17 +389,35 @@ sub elem_text {
 	return GET elemurl shift, 'text';
 }
 
+=item clear I<LOCATOR>
+
+Clear an element. Returns null.
+
+=cut
+
+sub clear {
+	my $url = elemurl shift, 'clear';
+	return POST $url, {}
+}
+
 =item fill I<ELEM> => I<VALUE>, I<ELEM> => I<VALUE> ...
 
 Fill in a form. The arguments are a list of pairs, consisting of an element
-locator for a form element and the value to insert into it. Returns null.
+locator for a form element and the value to insert into it. Each element is
+cleared before the value is inserted. Returns null.
 
 =cut
 
 sub fill {
 	while (@_) {
-		my $url = elemurl shift, 'value';
-		POST $url, { text => shift };
+		my $elem = elem shift;
+		my $tag = elem_tag $elem;
+		my $type = elem_attr $elem, 'type';
+		my $texty = defined $type
+		    && grep { $type eq $_ }
+		    qw(email number password search tel text url);
+		clear $elem if $tag eq 'textarea' or $texty;
+		POST elemurl($elem, 'value'), { text => shift };
 	}
 }
 
