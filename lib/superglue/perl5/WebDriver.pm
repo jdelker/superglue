@@ -26,6 +26,8 @@ use Carp;
 use Exporter qw(import);
 use JSON;
 use LWP::UserAgent;
+use POSIX;
+use Time::HiRes qw(gettimeofday);
 
 our @EXPORT = qw{
 	webdriver_init
@@ -77,7 +79,9 @@ sub ppjson {
 
 sub trace {
 	return unless $verbose;
-	printf "%s\n", shift;
+	my ($seconds, $microseconds) = gettimeofday;
+	my $stamp = strftime "%F %T", localtime $seconds;
+	printf "%s.%03d %s\n", $stamp, $microseconds/1000, shift;
 	return unless @_;
 	print ppjson @_;
 }
