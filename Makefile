@@ -14,10 +14,6 @@ SG=lib/superglue
 pl	  =	${SG}/perl5
 pltmp	  =	${pl}/JSON ${pl}/Net ${pl}/XML
 
-# for JANET
-CASPERJS  =	${SG}/casperjs
-CASPERver =	376d85fceb5eca63596e12e2ef6072a72422ed9b
-
 # for RIPE
 JSONPP    =	${pl}/JSON/PP.pm
 
@@ -41,12 +37,6 @@ realclean:
 	rm -rf ${CASPERJS}
 	rm -rf ${pltmp}
 	rm -rf Maketmp
-
-${CASPERJS}:
-	git clone git://github.com/n1k0/casperjs ${CASPERJS}
-	cd ${CASPERJS} && git checkout ${CASPERver}
-	: CasperJS smoke test
-	${CASPERJS}/bin/casperjs --version
 
 ${JSONPP}:
 	Makestuff/get-perl ${JSONPP} 2.27300
