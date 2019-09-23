@@ -32,6 +32,8 @@ use Time::HiRes qw(gettimeofday);
 our @EXPORT = qw{
 	webdriver_init
 	navigate
+	page_title
+	js_sync
 	elem
 	elems
 	sub_elem
@@ -306,6 +308,29 @@ Send the web browser to the I<URL>. Returns null.
 
 sub navigate {
 	POST '/url', { url => shift };
+}
+
+=item page_title
+
+Returns the text of the page title
+
+=cut
+
+sub page_title {
+	return GET '/title';
+}
+
+=item js_sync I<script> [I<args...>]
+
+Run I<script> in the browser and wait for it to complete.
+
+[ I am not sure how the arguments are used - the webdriver
+spec seems not to include them when calling the script. ]
+
+=cut
+
+sub js_sync {
+	POST '/execute/sync', { script => shift, args => [ @_ ] };
 }
 
 =item elem I<LOCATOR>
