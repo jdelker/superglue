@@ -1,0 +1,92 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use HTML::Parse;
+use IPC::System::Simple qw(capturex);
+use JSON;
+use LWP::UserAgent;
+use MIME::Base64;
+
+my $ua = LWP::UserAgent->new( agent => 'superglue/0.0' );
+
+my $login_url = 'https://auth.mythic-beasts.com/login';
+my $api_url = 'https://api.mythic-beasts.com/domains/';
+my $authorization;
+
+sub decrypt {
+	return capturex qw(gpg --use-agent --batch --quiet --decrypt), @_;
+}
+
+sub ppj {
+	print JSON->new->pretty->encode(@_);
+}
+
+sub response {
+	my $r = shift;
+	if ($r->is_error) {
+		my $msg = $r->content;
+		eval {
+			my $j = decode_json $msg;
+			$msg = $j->{error} if $j->{error};
+		};
+		$msg = parse_html($msg)->as_trimmed_text()
+		    if $msg =~ m{^<};
+		die sprintf "error from %s %s\n%s\n%s\n",
+		    $r->request->method, $r->request->uri,
+		    $r->status_line, $msg;
+	}
+	return decode_json $r->content;
+}
+
+sub GET {
+	my $domain = shift;
+	my $action = shift // '';
+	return response
+	    $ua->get("$api_url$domain$action",
+		     Authorization => $authorization);
+}
+
+sub POST {
+	my $domain = shift;
+	my $action = shift;
+	my $body = shift;
+	return response
+	    $ua->post("$api_url$domain$action",
+		      Authorization => $authorization,
+		      Content_Type => 'application/json',
+		      Content => encode_json $body);
+}
+
+my $pwfile = $ARGV[0];
+
+my %creds = (
+	user => 'c7733-domain',
+	pass => decrypt($pwfile) =~ s/\s*$//r,
+    );
+
+my $login_creds = "$creds{user}:$creds{pass}";
+
+$authorization = 'Basic ' . encode_base64 $login_creds, '';
+
+my $login = response
+    $ua->post($login_url,
+	      Authorization => $authorization,
+	      Content_Type => 'application/x-www-form-urlencoded',
+	      Content => 'grant_type=client_credentials');
+
+die "unexpected token type $login->{token_type} in login response\n"
+    unless 'bearer' eq lc $login->{token_type};
+
+$authorization = "Bearer $login->{access_token}";
+
+my $domain = $ARGV[1];
+
+ppj GET $domain;
+ppj GET $domain, '/dns';
+ppj GET $domain, '/dnssec';
+ppj GET $domain, '/ds';
+ppj GET $domain, '/expiry';
+ppj GET $domain, '/lock' unless $domain =~ m{\.uk$};
+ppj GET $domain, '/nameservers';
