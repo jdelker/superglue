@@ -1,5 +1,9 @@
 #!/usr/bin/perl
 
+# WIP. The new Gandi API doesn't cover DNSSEC, and its contact
+# handling is mildly problematic. I'm moving our domains off Gandi so
+# this exists just to make it easier to update delegation NS records.
+
 use warnings;
 use strict;
 
