@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use FindBin;
+use LWP::UserAgent;
+use JSON;
+use File::Slurp;
+use YAML;
+
+use lib "$FindBin::Bin/../lib/superglue/perl5";
+
+use Restful;
+
+die "usage: $FindBin::Script <credfile> <domain>\n"
+    unless @ARGV == 2;
+
+my $credfile = shift;
+my $creds = YAML::LoadFile $credfile;
+die "missing Apikey in $credfile\n" unless defined $creds->{Apikey};
+
+my $domain = shift;
+
+my $ua = Restful->new(
+	verbose => 1,
+	agent => 'Gandi',
+	uri => "https://api.gandi.net/v5/domain/domains/${domain}",
+	authorization => "Apikey $creds->{Apikey}",
+    );
+
+my $ns = [qw(
+    auth0.dns.cam.ac.uk
+    auth1.dns.cam.ac.uk
+    ns1.mythic-beasts.com
+    ns2.mythic-beasts.com
+    ns3.mythic-beasts.com
+)];
+
+$ua->get('');
+
+# $ua->put('/nameservers', { nameservers => $ns });
+
+exit;
