@@ -86,18 +86,18 @@ sub trim {
 	return [ splice @$rows, 1, -1 ];
 }
 
-# navigate 'https://www.mythic-beasts.com/user/logout';
+navigate 'https://www.mythic-beasts.com/user/logout';
 
-# navigate 'https://www.mythic-beasts.com/user/login';
+navigate 'https://www.mythic-beasts.com/user/login';
 
-# my $login = '#login-form button[type="submit"]';
-# if (has_elem $login) {
-# 	fill
-# 	    '#ident' => $creds->{username},
-# 	    '#password' => $creds->{password};
-# 	click elem { 'xpath' => '//label/div[text()="Unrestricted"]' };
-# 	click $login;
-# }
+my $login = '#login-form button[type="submit"]';
+if (has_elem $login) {
+	fill
+	    '#ident' => $creds->{username},
+	    '#password' => $creds->{password};
+	click elem { 'xpath' => '//label/div[text()="Unrestricted"]' };
+	click $login;
+}
 
 my $domctrl = "https://ctrlpanel.mythic-beasts.com/customer/domains/$domain";
 sub go_home {
