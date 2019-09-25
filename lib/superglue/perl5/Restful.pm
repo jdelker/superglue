@@ -22,7 +22,7 @@ use POSIX;
 use Time::HiRes qw(gettimeofday);
 
 has verbose => (
-	is => 'ro',
+	is => 'rw',
     );
 
 has agent => (
