@@ -27,22 +27,32 @@ die "missing Apikey in $credfile\n" unless defined $creds->{Apikey};
 my $domain = shift;
 
 my $ua = Restful->new(
-	verbose => 1,
+#	verbose => 1,
 	agent => 'Gandi',
 	uri => "https://api.gandi.net/v5/domain/domains/${domain}",
 	authorization => "Apikey $creds->{Apikey}",
     );
 
-my $ns = [qw(
+my @want_ns = qw(
     auth0.dns.cam.ac.uk
     auth1.dns.cam.ac.uk
     ns1.mythic-beasts.com
     ns2.mythic-beasts.com
     ns3.mythic-beasts.com
-)];
+);
 
-$ua->get('');
+my $want_ns = join ' ', sort @want_ns;
 
-# $ua->put('/nameservers', { nameservers => $ns });
+my $got_ns = $ua->get('/nameservers');
+
+$got_ns = join ' ', sort @$got_ns;
+
+exit if $want_ns eq $got_ns;
+
+print "MISMATCH $domain $got_ns\n";
+
+$ua->verbose(1);
+
+#$ua->put('/nameservers', { nameservers => \@want_ns });
 
 exit;
