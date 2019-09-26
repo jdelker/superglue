@@ -9,7 +9,6 @@ use Scalar::Util;
 
 our @EXPORT = qw{
 	edie
-	eopen
 	ewarn
 	sdie
 	swarn
@@ -30,11 +29,6 @@ sub sdie {
 }
 sub swarn {
 	print STDERR "$FindBin::Script: @_\n";
-}
-
-sub eopen {
-	return if open $_[0], $_[1], $_[2];
-	edie "open $_[1] $_[2]";
 }
 
 1;
