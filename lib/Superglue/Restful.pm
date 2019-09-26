@@ -1,8 +1,8 @@
-package Restful;
+package Superglue::Restful;
 
 =head1 NAME
 
-Restful - JSON-over-HTTP API suport routines
+Superglue::Restful - JSON-over-HTTP API suport routines
 
 =head1 DESCRIPTION
 
