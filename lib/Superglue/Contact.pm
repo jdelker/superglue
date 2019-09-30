@@ -95,6 +95,7 @@ America) and NNNNNNNN is the combined area code and local number.
 use strictures 2;
 use warnings;
 
+use Carp;
 use YAML;
 
 our $fields = [
@@ -141,7 +142,6 @@ Returns a Superglue::Contact object.
 
 sub new {
 	my ($class,$yml) = @_;
-	my $yml = shift;
 	my $self = ref $yml ? $yml : YAML::LoadFile $yml;
 	bless $self, $class;
 	$self->{_filename} = ref $yml ? "domain contact" : $yml;
