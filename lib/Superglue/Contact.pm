@@ -145,12 +145,11 @@ sub new {
 	my $self = ref $yml ? $yml : YAML::LoadFile $yml;
 	bless $self, $class;
 	$self->{_filename} = ref $yml ? "domain contact" : $yml;
-	while (my ($Field, $value) = each %$self) {
-		$self->set($Field => $value);
-	}
-	if ($self->{name} =~ m{^\s*(\S+)\s+(\S+)\s*$}) {
+	$self->set($_ => $self->{$_}) for keys %$self;
+	if (defined $self->{name} and
+	    $self->{name} =~ m{^\s*(\S+)\s+(\S+)\s*$}) {
 		$self->set(first => $1);
-		$self->set(lsst => $2);
+		$self->set(last => $2);
 	}
 	if ($self->{first} and $self->{last}) {
 		$self->set(name => "$self->{first} $self->{last}");
