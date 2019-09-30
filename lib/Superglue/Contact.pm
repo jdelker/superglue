@@ -8,10 +8,10 @@ Superglue::Contact - domain registration contact information
 
   use Superglue::Contact;
 
-  my $whois = Superglue::Contact->new($filename);
+  my $contact = Superglue::Contact->new($filename);
 
   for my $field (qw( Org Name Email )) {
-    $api->set($field => $whois->get($field));
+    $api->set($field => $contact->get($field));
   }
 
 =head1 DESCRIPTION
@@ -129,10 +129,11 @@ for my $aliases (@$fields) {
 
 =over
 
-=item $whois = Superglue::Contact->new($filename);
+=item $contact = Superglue::Contact->new($filename);
 
 Load the YAML file C<$filename> and check that the field names are
-known and consistent.
+known and consistent. If C<$filename> is a reference to a hash then
+that is used directly as the contact object.
 
 Returns a Superglue::Contact object.
 
@@ -141,9 +142,9 @@ Returns a Superglue::Contact object.
 sub new {
 	my ($class,$yml) = @_;
 	my $yml = shift;
-	my $self = YAML::LoadFile $yml;
+	my $self = ref $yml ? $yml : YAML::LoadFile $yml;
 	bless $self, $class;
-	$self->{_filename} = $yml;
+	$self->{_filename} = ref $yml ? "domain contact" : $yml;
 	while (my ($Field, $value) = each %$self) {
 		$self->set($Field => $value);
 	}
@@ -157,7 +158,7 @@ sub new {
 	return $self;
 }
 
-=item $value = $whois->get($field)
+=item $value = $contact->get($field)
 
 Get a field of a contact, matching field names case-insensitively.
 Returns the empty string if the field is not set.
@@ -169,7 +170,7 @@ sub get {
 	return $self->{lc $Field} // '';
 }
 
-=item $whois->set($field => $value)
+=item $contact->set($field => $value)
 
 Set a field of a contact, ensuring that the field name is known and
 that it has not previously been set to a different value.
