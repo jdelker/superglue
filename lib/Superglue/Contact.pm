@@ -73,6 +73,10 @@ matched case-insensitively.
 
 =item email
 
+=item lock / loctite
+
+=item privacy
+
 =back
 
 =head2 Names
@@ -89,6 +93,20 @@ split into "first" / "last".
 The standard format for phone numbers is "+CC.NNNNNNNN" where CC is
 the international dialling code (e.g. 44 for the UK, 1 for North
 America) and NNNNNNNN is the combined area code and local number.
+
+=head2 Registry transfer lock
+
+The "lock" field is not strictly part of the contact information, but
+it can be used to disable the registry transfer lock. Superglue
+normally ensures the domain is locked against transfers.
+
+=head2 Whois privacy
+
+The "privacy" field is for controlling whether contact details appear
+in C<whois>. Superglue is designed for corporate domains whose contact
+details are not personal data, so Superglue turns whois privacy off by
+default. (However due to GDPR fears, many registries do not publish
+contact details even when whois privacy is disabled.)
 
 =cut
 
@@ -114,6 +132,8 @@ our $fields = [
 	[qw[ phone tel voice ]],
 	[qw[ fax ]],
 	[qw[ email ]],
+	[qw[ lock loctite ]],
+	[qw[ privacy ]],
     ];
 
 # map from field names to a list of aliases
