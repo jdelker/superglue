@@ -8,6 +8,7 @@ use lib "$FindBin::Bin/../lib";
 
 use Test::Exception;
 use Test::More;
+use Test::TempFile;
 
 require_ok('Superglue::Contact');
 
@@ -51,6 +52,20 @@ lives_ok {
 } 'loaded split name';
 
 is $c->get('name'), "Given Family", 'joined name';
+
+my ($fh,$fn) = tempfile;
+$fh->print(<<'YAML');
+---
+org: Example Inc
+email: hostmaster@example.com
+YAML
+ok $fh->close(), 'wrote temp file';
+
+lives_ok {
+	$c = Superglue::Contact->new($fn);
+} 'loaded YAML';
+
+like $c->get('email'), qr(hostmaster), 'got email address from YAML';
 
 done_testing;
 
