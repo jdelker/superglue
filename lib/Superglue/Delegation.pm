@@ -15,8 +15,9 @@ delegation digests.
 use warnings;
 use strictures 2;
 
-use Data::Dumper;
+use IPC::System::Simple qw(capturex);
 use Moo;
+use Net::DNS;
 use Net::DNS::ZoneFile;
 
 has zone => (
@@ -26,12 +27,9 @@ has zone => (
 
 sub ds {
 	my $self = shift;
-	my $ds = $self->{ds} //= {};
-	if (my $rdata = shift) {
-		$ds->{$rdata} = ();
-	} else {
-		return wantarray ? keys %$ds : $ds;
-	}
+	my $ds = $self->{DS} // [];
+	return @$ds if wantarray;
+	return join '', map $_->string."\n", @$ds;
 }
 
 sub ns {
@@ -76,22 +74,31 @@ sub read {
 	my $file = shift;
 	my $zone = $self->zone;
 	my $zonefile = Net::DNS::ZoneFile->new($file,$zone);
-	my @ns;
+	my (@ns,@ds,$dnssec);
 	while (my $rr = $zonefile->read) {
-		if ($rr->type eq 'NS' and
-		    $rr->owner eq $zone) {
-			push @ns, $rr->nsdname;
-		}
-		if ($rr->type eq 'DS' and
-		    $rr->owner eq $zone) {
-			$self->ds($rr->rdstring);
-		}
 		if ($rr->type eq 'A' or
 		    $rr->type eq 'AAAA') {
 			$self->ns($rr->owner, $rr->rdstring);
 		}
+		if ($rr->owner eq $zone and
+		    $rr->type eq 'NS') {
+			push @ns, $rr->nsdname;
+		}
+		if ($rr->owner eq $zone and
+		    $rr->type eq 'DS') {
+			push @ds, $rr;
+		}
+		if ($rr->owner eq $zone and
+		    $rr->type =~ m{^(CDS|DNSKEY|CDNSKEY)$}) {
+			$dnssec = 1;
+		}
 	}
 	$self->prune_ns(@ns);
+	# child records override parent
+	@ds = map Net::DNS::RR->new($_),
+	    capturex 'dnssec-dsfromkey','-f',$file,$self->zone
+	    if $dnssec;
+	$self->{DS} = \@ds;
 	return;
 }
 
