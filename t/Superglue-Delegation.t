@@ -24,6 +24,19 @@ my $ns = $z->ns;
 is scalar keys %$ns, 5,
     'found 5 NS records';
 
+my $auth0 = $ns->{'authdns0.csx.cam.ac.uk'};
+is scalar keys %$auth0, 2,
+    '2 glue addrs for authdns0';
+
+for my $host (qw(ns2.ic.ac.uk sns-pb.isc.org)) {
+	my $addr = $ns->{$host};
+	ok exists $ns->{$host}, "$host exists";
+	ok defined $addr, "$host is a thing";
+	is ref $addr, 'HASH', "$host is a hash ref";
+	is scalar keys %$addr, 0,
+	    "no glue for $host";
+}
+
 my $ds = $z->ds;
 like $ds, qr(\s+52543\s+5\s+2\s+),
     'calculated DS record';
@@ -41,7 +54,6 @@ cam.ac.uk.                        NS      sns-pb.isc.org.
 cam.ac.uk.                        NS      dns0.eng.cam.ac.uk.
 cam.ac.uk.                        NS      dns0.cl.cam.ac.uk.
 cam.ac.uk.                        NS      ns2.ic.ac.uk.
-ns2.ic.ac.uk.                     A       155.198.142.82
 dns0.cl.cam.ac.uk.                A       128.232.0.19
 dns0.cl.cam.ac.uk.                AAAA    2001:630:212:200::d:a0
 dns0.eng.cam.ac.uk.               A       129.169.8.8
@@ -53,6 +65,8 @@ authdns0.csx.cam.ac.uk.           A       131.111.8.37
 authdns0.csx.cam.ac.uk.           AAAA    2001:630:212:8::d:a0
 authdns1.csx.cam.ac.uk.           A       131.111.12.37
 authdns1.csx.cam.ac.uk.           AAAA    2001:630:212:12::d:a1
+ns2.ic.ac.uk.           86393   IN      A       155.198.142.82
+ns2.ic.ac.uk.           893     IN      AAAA    2001:630:12:600:1::82
 
 cam.ac.uk.              790 IN DNSKEY 257 3 5 (
                                 AwEAAe9CQ5E0MbMr7AGMTmlzpyLrh+JJxjITH77T6cEx

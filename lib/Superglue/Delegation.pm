@@ -34,32 +34,20 @@ sub ds {
 
 sub ns {
 	my $self = shift;
-	my $ns = $self->{ns} //= {};
-	if (my ($name,$addr) = @_) {
-		# always add the name to the list of nameservers
-		$ns->{$name} //= {};
-		return unless $addr;
-		my $sub = '.'.$name;
-		my $dom = '.'.$self->zone;
-		return unless $dom eq substr $sub, -length $dom;
-		# only add the address if the nameserver needs glue
-		$ns->{$name}->{$addr} = ();
-		return;
-	} elsif (wantarray) {
-		my @ns;
-		for my $name (sort keys %$ns) {
-			my $addr = $ns->{$name};
-			my @addr = sort keys %$addr;
-			if (@addr) {
-				push @ns, $name, $_ for @addr;
-			} else {
-				push @ns, $name, '';
-			}
+	my $ns = $self->{ns};
+	return unless $ns;
+	return $ns unless wantarray;
+	my @ns;
+	for my $name (sort keys %$ns) {
+		my $addr = $ns->{$name};
+		my @addr = sort keys %$addr;
+		if (@addr) {
+			push @ns, $name, $_ for @addr;
+		} else {
+			push @ns, $name, '';
 		}
-		return @ns;
-	} else {
-		return $ns;
 	}
+	return @ns;
 }
 
 sub prune_ns {
@@ -76,13 +64,17 @@ sub read {
 	my $zonefile = Net::DNS::ZoneFile->new($file,$zone);
 	my (@ns,@ds,$dnssec);
 	while (my $rr = $zonefile->read) {
-		if ($rr->type eq 'A' or
-		    $rr->type eq 'AAAA') {
-			$self->ns($rr->owner, $rr->rdstring);
-		}
 		if ($rr->owner eq $zone and
 		    $rr->type eq 'NS') {
-			push @ns, $rr->nsdname;
+			$self->{ns}->{$rr->nsdname} = {};
+		}
+		if ($rr->type eq 'A' or
+		    $rr->type eq 'AAAA') {
+			my $sub = '.'.$rr->owner;
+			my $dom = '.'.$self->zone;
+			$self->{ns}->{$rr->owner}->{$rr->rdstring} = ()
+			    if exists $self->{ns}->{$rr->owner}
+			    and $dom eq substr $sub, -length $dom;
 		}
 		if ($rr->owner eq $zone and
 		    $rr->type eq 'DS') {
@@ -93,10 +85,9 @@ sub read {
 			$dnssec = 1;
 		}
 	}
-	$self->prune_ns(@ns);
 	# child records override parent
 	@ds = map Net::DNS::RR->new($_),
-	    capturex 'dnssec-dsfromkey','-f',$file,$self->zone
+	    capturex 'dnssec-dsfromkey', '-f', $file, $self->zone
 	    if $dnssec;
 	$self->{DS} = \@ds;
 	return;
