@@ -10,13 +10,13 @@ use File::Slurp;
 use Test::More;
 use Test::TempFile;
 
-require_ok('Superglue::Delegation');
-
 my ($fh,$fn) = tempfile;
 write_file $fh, read_file \*DATA;
 
-my $z = Superglue::Delegation->new(zone => 'cam.ac.uk');
-$z->read($fn);
+require_ok 'Superglue::Test::Delegation';
+
+my $z = Superglue::Test::Delegation->new(zone => 'cam.ac.uk');
+$z->read_zone($fn);
 
 ok($z, 'loaded delegation');
 
@@ -45,8 +45,7 @@ done_testing;
 
 exit;
 
-
-__DATA__
+__END__
 $TTL 3600
 
 cam.ac.uk.                        NS      authdns0.csx.cam.ac.uk.

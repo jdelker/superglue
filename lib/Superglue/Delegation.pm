@@ -6,7 +6,7 @@ Superglue::Delegation - DNS delegation records
 
 =head1 DESCRIPTION
 
-This module provides has helper routines for reading and comparing
+This module is a Moo::Role providing methods for reading and comparing
 domain delegation records - nameservers, glue addresses, and DS secure
 delegation digests.
 
@@ -16,14 +16,12 @@ use warnings;
 use strictures 2;
 
 use IPC::System::Simple qw(capturex);
-use Moo;
 use Net::DNS;
 use Net::DNS::ZoneFile;
 
-has zone => (
-	is => 'ro',
-	required => 1,
-    );
+use Moo::Role;
+
+requires 'zone';
 
 sub ds {
 	my $self = shift;
@@ -57,7 +55,7 @@ sub prune_ns {
 	@$new{@_} = @$old{@_};
 }
 
-sub read {
+sub read_zone {
 	my $self = shift;
 	my $file = shift;
 	my $zone = $self->zone;
@@ -93,7 +91,7 @@ sub read {
 	return;
 }
 
-sub print {
+sub print_glue {
 	my $self = shift;
 	my @ns = $self->ns;
 	while (my ($name,$addr) = splice @ns, 0, 2) {
