@@ -7,12 +7,12 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 
 use File::Slurp;
-use File::Temp qw(tempfile);
 use Test::More;
+use Test::TempFile;
 
 require_ok('Superglue::Delegation');
 
-my ($fh,$fn) = tempfile $FindBin::Script.'XXXXXXXX', UNLINK => 1;
+my ($fh,$fn) = tempfile;
 write_file $fh, read_file \*DATA;
 
 my $z = Superglue::Delegation->new(zone => 'cam.ac.uk');
