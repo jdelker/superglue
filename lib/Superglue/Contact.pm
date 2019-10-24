@@ -11,7 +11,7 @@ Superglue::Contact - domain registration contact information
   my $contact = Superglue::Contact->new($filename);
 
   for my $field (qw( Org Name Email )) {
-    $api->set($field => $contact->get($field));
+    $api->set($field => $contact->whois($field));
   }
 
 =head1 DESCRIPTION
@@ -116,6 +116,10 @@ use warnings;
 use Carp;
 use YAML;
 
+our @EXPORT_SUPERGLUE_SCRIPT = qw(
+	whois
+);
+
 our $fields = [
 	[qw[ _filename ]], # for error reporting
 	[qw[ org orgname owner company ]],
@@ -165,39 +169,35 @@ sub new {
 	my $self = ref $yml ? $yml : YAML::LoadFile $yml;
 	bless $self, $class;
 	$self->{_filename} = ref $yml ? "domain contact" : $yml;
-	$self->set($_ => $self->{$_}) for keys %$self;
+	$self->whois($_ => $self->{$_}) for keys %$self;
 	if (defined $self->{name} and
 	    $self->{name} =~ m{^\s*(\S+)\s+(\S+)\s*$}) {
-		$self->set(first => $1);
-		$self->set(last => $2);
+		$self->whois(first => $1);
+		$self->whois(last => $2);
 	}
 	if ($self->{first} and $self->{last}) {
-		$self->set(name => "$self->{first} $self->{last}");
+		$self->whois(name => "$self->{first} $self->{last}");
 	}
 	return $self;
 }
 
-=item $value = $contact->get($field)
+=item $value = $contact->whois($field)
 
-Get a field of a contact, matching field names case-insensitively.
-Returns the empty string if the field is not set.
+With one argument, get a field of a contact, matching field names
+case-insensitively. Returns the empty string if the field is not set.
 
-=cut
+=item $contact->whois($field => $value)
 
-sub get {
-	my ($self,$Field) = @_;
-	return $self->{lc $Field} // '';
-}
-
-=item $contact->set($field => $value)
-
-Set a field of a contact, ensuring that the field name is known and
-that it has not previously been set to a different value.
+With two arguments, set a field of a contact, ensuring that the field
+name is known and that it has not previously been set to a different
+value.
 
 =cut
 
-sub set {
+sub whois {
 	my ($self,$Field,$value) = @_;
+	return $self->{lc $Field} // ''
+	    unless defined $value;
 	my $yml = $self->{_filename};
 	my $field = lc $Field;
 	my $aliases = $aliases{$field};
