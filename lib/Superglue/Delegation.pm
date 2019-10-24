@@ -6,9 +6,14 @@ Superglue::Delegation - DNS delegation records
 
 =head1 DESCRIPTION
 
-This module is a Moo::Role providing methods for reading and comparing
-domain delegation records - nameservers, glue addresses, and DS secure
-delegation digests.
+Superglue::Delegation loads a zone file and works out what the zone's
+delegation records should be.
+
+=head1 BUGS
+
+At the moment this doesn't help with getting delegation information
+from the registr* or with comparing delegations, so more thinking
+needed.
 
 =cut
 
@@ -19,9 +24,10 @@ use IPC::System::Simple qw(capturex);
 use Net::DNS;
 use Net::DNS::ZoneFile;
 
-use Moo::Role;
-
-requires 'zone';
+our @EXPORT_SUPERGLUE = qw(
+	ds
+	ns
+);
 
 sub ds {
 	my $self = shift;
@@ -48,17 +54,11 @@ sub ns {
 	return @ns;
 }
 
-sub prune_ns {
-	my $self = shift;
-	my $old = $self->{ns};
-	my $new = $self->{ns} = {};
-	@$new{@_} = @$old{@_};
-}
-
-sub read_zone {
-	my $self = shift;
-	my $file = shift;
-	my $zone = $self->zone;
+sub new {
+	my $class = shift;
+	my $self = bless { @_ }, $class;
+	my $file = $self->{file};
+	my $zone = $self->{zone};
 	my $zonefile = Net::DNS::ZoneFile->new($file,$zone);
 	my (@ns,@ds,$dnssec);
 	while (my $rr = $zonefile->read) {
@@ -69,7 +69,7 @@ sub read_zone {
 		if ($rr->type eq 'A' or
 		    $rr->type eq 'AAAA') {
 			my $sub = '.'.$rr->owner;
-			my $dom = '.'.$self->zone;
+			my $dom = '.'.$zone;
 			$self->{ns}->{$rr->owner}->{$rr->rdstring} = ()
 			    if exists $self->{ns}->{$rr->owner}
 			    and $dom eq substr $sub, -length $dom;
@@ -85,18 +85,10 @@ sub read_zone {
 	}
 	# child records override parent
 	@ds = map Net::DNS::RR->new($_),
-	    capturex 'dnssec-dsfromkey', '-f', $file, $self->zone
+	    capturex 'dnssec-dsfromkey', '-f', $file, $zone
 	    if $dnssec;
 	$self->{DS} = \@ds;
-	return;
-}
-
-sub print_glue {
-	my $self = shift;
-	my @ns = $self->ns;
-	while (my ($name,$addr) = splice @ns, 0, 2) {
-		print "$name\t$addr\n";
-	}
+	return $self;
 }
 
 1;
