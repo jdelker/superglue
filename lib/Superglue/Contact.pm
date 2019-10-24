@@ -116,12 +116,12 @@ use warnings;
 use Carp;
 use YAML;
 
-our @EXPORT_SUPERGLUE_SCRIPT = qw(
+our @EXPORT_SUPERGLUE = qw(
 	whois
 );
 
 our $fields = [
-	[qw[ _filename ]], # for error reporting
+	[qw[ _source ]], # for error reporting
 	[qw[ org orgname owner company ]],
 	[qw[ first given ]],
 	[qw[ last family ]],
@@ -157,18 +157,23 @@ for my $aliases (@$fields) {
 =item $contact = Superglue::Contact->new($filename);
 
 Load the YAML file C<$filename> and check that the field names are
-known and consistent. If C<$filename> is a reference to a hash then
-that is used directly as the contact object.
+known and consistent.
 
 Returns a Superglue::Contact object.
+
+=item $contact = Superglue::Contact->new('sourcename' => $hashref);
+
+Convert C<$hashref> into a Superglue::Contact object, checking that
+the field names are known and consistent. The C<'sourcename'> is used
+for error reporting.
 
 =cut
 
 sub new {
-	my ($class,$yml) = @_;
-	my $self = ref $yml ? $yml : YAML::LoadFile $yml;
+	my ($class,$src,$self) = @_;
+	$self //= YAML::LoadFile $src;
 	bless $self, $class;
-	$self->{_filename} = ref $yml ? "domain contact" : $yml;
+	$self->{_source} = $src;
 	$self->whois($_ => $self->{$_}) for keys %$self;
 	if (defined $self->{name} and
 	    $self->{name} =~ m{^\s*(\S+)\s+(\S+)\s*$}) {
@@ -198,14 +203,14 @@ sub whois {
 	my ($self,$Field,$value) = @_;
 	return $self->{lc $Field} // ''
 	    unless defined $value;
-	my $yml = $self->{_filename};
+	my $src = $self->{_source};
 	my $field = lc $Field;
 	my $aliases = $aliases{$field};
-	croak "$yml: unknown contact field $Field\n"
+	croak "$src: unknown contact field $Field\n"
 	    unless defined $aliases;
 	for my $alias (@$aliases) {
 		my $other = $self->{$alias};
-		croak "$yml: conflicting values "
+		croak "$src: conflicting values "
 		    ."for $Field:$value "
 		    ."and $alias:$other\n"
 		    if defined $other and $other ne $value;
