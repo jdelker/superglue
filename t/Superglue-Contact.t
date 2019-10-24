@@ -13,18 +13,18 @@ use Test::TempFile;
 require_ok('Superglue::Contact');
 
 throws_ok {
-	Superglue::Contact->new({ unknown => 'value' });
+	Superglue::Contact->new(test => { unknown => 'value' });
 } qr{unknown contact field}, 'unknown contact field';
 
 throws_ok {
-	Superglue::Contact->new({
+	Superglue::Contact->new(test => {
 		name => "First Last",
 		Name => "Given Family",
 	});
 } qr{conflicting values}, 'unknown contact field';
 
 throws_ok {
-	Superglue::Contact->new({
+	Superglue::Contact->new(test => {
 		name => "First Last",
 		Given => "Given",
 		Family => "Family",
@@ -34,24 +34,24 @@ throws_ok {
 my $c;
 
 lives_ok {
-	$c = Superglue::Contact->new({
+	$c = Superglue::Contact->new(test => {
 		name => "First Last",
 	});
 } 'loaded simple name';
 
-is $c->get('Name'), "First Last", 'title case';
-is $c->get('NAME'), "First Last", 'upper case';
-is $c->get('first'), "First", 'split name (first)';
-is $c->get('last'), "Last", 'split name (last)';
+is $c->whois('Name'), "First Last", 'title case';
+is $c->whois('NAME'), "First Last", 'upper case';
+is $c->whois('first'), "First", 'split name (first)';
+is $c->whois('last'), "Last", 'split name (last)';
 
 lives_ok {
-	$c = Superglue::Contact->new({
+	$c = Superglue::Contact->new(test => {
 		Given => "Given",
 		Family => "Family",
 	});
 } 'loaded split name';
 
-is $c->get('name'), "Given Family", 'joined name';
+is $c->whois('name'), "Given Family", 'joined name';
 
 my ($fh,$fn) = tempfile;
 $fh->print(<<'YAML');
@@ -65,7 +65,7 @@ lives_ok {
 	$c = Superglue::Contact->new($fn);
 } 'loaded YAML';
 
-like $c->get('email'), qr(hostmaster), 'got email address from YAML';
+like $c->whois('email'), qr(hostmaster), 'got email address from YAML';
 
 done_testing;
 
