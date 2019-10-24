@@ -13,10 +13,12 @@ use Test::TempFile;
 my ($fh,$fn) = tempfile;
 write_file $fh, read_file \*DATA;
 
-require_ok 'Superglue::Test::Delegation';
+require_ok 'Superglue::Delegation';
 
-my $z = Superglue::Test::Delegation->new(zone => 'cam.ac.uk');
-$z->read_zone($fn);
+my $z = Superglue::Delegation->new(
+	zone => 'cam.ac.uk',
+	file => $fn
+    );
 
 ok($z, 'loaded delegation');
 
