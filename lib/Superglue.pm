@@ -1,81 +1,51 @@
 package Superglue;
 
-# TODO: sub compare_delegation
-
-use warnings;
+use strictures 2;
 use strict;
 
-use Cwd qw(realpath);
-use Exporter qw(import);
-use Getopt::Long qw{:config gnu_getopt posix_default};
-use IPC::Open2;
+use Carp;
+use Getopt::Long;
 use Pod::Usage;
+use ReGPG::Login;
 use ScriptDie;
+use Superglue::Contact;
+use Superglue::Delegation;
 
-# monkey patch to fix help text markup
-sub Pod::Usage::cmd_b { return $_[2] }
-sub Pod::Usage::cmd_c { return $_[2] }
-sub Pod::Usage::cmd_i { return "<$_[2]>" }
+our @EXPORT_SUPERGLUE = qw(
+);
 
-our @EXPORT = qw{
-	debug
-	usage
-	verbose
-};
+our $script_self;
 
-our $re_label = qr/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/;
-our $re_dname = qr/^(?:$re_label\.)+$re_label$/;
-our $re_ipv6 = qr/^(?:[0-9a-f]{1,4}:)+(?::|(?::[0-9a-f]{1,4})+|[0-9a-f]{1,4})$/;
-our $re_ipv4 = qr/^\d+\.\d+\.\d+\.\d+$/;
-
-sub verbose {
-	1;
-}
-
-sub debug {
-	1;
-}
-
-sub usage {
-	my $v = shift // 0;
-	pod2usage( -exit => $v != 2, -verbose => $v );
-}
-
-sub redefine {
-	my $name= shift;
-	my $ref = shift;
-	my $pkg = caller(1);
-	no strict 'refs';
-	no warnings;
-	*{$pkg."::".$name} = *{$name} = $ref;
-}
-
-sub getopt {
-	my %opt;
-
-	GetOptions(\%opt, qw{
-		creds|c=s
-		debug|d
-		h|?
-		help
-		not-really|n
-		verbose|v
-	}) or exit 1;
-
-	usage 1 if $opt{h};
-	usage 2 if $opt{help};
-
-	usage unless $opt{creds};
-	usage unless @ARGV == 1;
-
-	$opt{zone} = shift @ARGV;
-	sdie "bad domain name: $opt{zone}"
-	  unless $opt{zone} =~ $re_dname;
-
-	redefine 'debug',   \&ScriptDie::swarn if $opt{debug};
-	redefine 'verbose', \&ScriptDie::swarn if $opt{debug} or $opt{verbose};
-
-	return %opt;
+sub import {
+	my $class = shift;
+	my %opt; @opt{@_} = @_;
+	my $script = delete $opt{':script'};
+	my $restful = delete $opt{':restful'};
+	my $webdriver = delete $opt{':webdriver'};
+	my @opt = keys %opt;
+	croak "unknown Superglue options @opt" if @opt;
+	# export nothing unless we are in script mode
+	return unless $script;
+	# packages from which we export methods
+	my @pkg = (
+		\%Superglue::,
+		\%Superglue::Contact::,
+		\%Superglue::Delegation::,
+	);
+	push @pkg, \%Superglue::Restful:: if $restful;
+	push @pkg, \%Superglue::WebDriver:: if $webdriver;
+	# wrap exported methods with the implicit script self
+	for my $pkg (@pkg) {
+		my $methods = $pkg->{EXPORT_SUPERGLUE};
+		for my $name (@$methods) {
+			my $ref = $pkg->{$name};
+			$main::{$name} = sub {
+				# like return $script_self->$name(@_)
+				unshift @_, $script_self;
+				goto &$ref;
+			};
+		}
+	}
 }
 
 1;
