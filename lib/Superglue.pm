@@ -4,13 +4,6 @@ package Superglue;
 
 Superglue - framework for domain registration management scripts
 
-=head1 COMMAND FLAGS
-
-  [--contact <filename.yml>]
-  [--delegation <filename.db>]
-   --login <filename.yml>
-   --zone <example.com>
-
 =head1 SYNOPSIS
 
   # object-oriented
@@ -23,6 +16,49 @@ Superglue - framework for domain registration management scripts
 
   use Superglue qw(:script);
 
+=head1 DESCRIPTION
+
+The Superglue package collects together support code for scripting
+domain registration update clients. A Superglue object is built from
+the following modules. See their documentation for full details; here
+we mainly explain how they fit together.
+
+=over
+
+=item L<ReGPG::Login>
+
+Used to read encrypted credentials. It only provides a C<login>
+attribute containing plain data that you use to access the
+registration update interface.
+
+=item L<Superglue::Contact>
+
+=item L<Superglue::Delegation>
+
+Used to represent the domain's registration details. You construct a
+Superglue object with either or both of C<contact> and C<delegation>
+attributes, representing the desired state of the domain's
+registration. As a shorthand, the Superglue::Contact and
+Superglue::Delegation methods are available on the Superglue object
+itself.
+
+You can also construct separate Superglue::Contact and
+Superglue::Delegation objects to represent the current state of the
+domain's registration, to compare with the desired state when working
+out if a change is needed.
+
+=item L<Superglue::Restful>
+
+Optional support for JSON-over-HTTP interfaces that provides handy
+C<get> and C<post> methods on the Superglue object.
+
+=item L<Superglue::WebDriver>
+
+Optional support for scripting a website, as a last resort when a
+domain registration service doesn't provide enough of an API.
+
+=back
+
 =cut
 
 use strictures 2;
@@ -30,6 +66,7 @@ use warnings;
 
 use Carp;
 use Getopt::Long;
+use IO::String;
 use Moo;
 use Pod::Find;
 use Pod::Usage;
@@ -41,17 +78,61 @@ use Sys::Syslog qw(:macros);
 
 use namespace::clean;
 
-# used for exporting subroutines in script mode, and for extending
-# command line options, We reach over into the symbol table to find
-# the relevant variables in each module.
-our %optional = (
-	restful => \%Superglue::Restful::,
-	webdriver => \%Superglue::WebDriver::,
-);
+our @optional = qw( Superglue::Restful );
+
+# Mix in optional parts, before we try to grab their symbol tables.
+with @optional;
+
+# For exporting subroutines in script mode, and for extending command
+# line options, we reach over into the symbol table to find the
+# relevant variables in each module.
+our %optional;
+$optional{lc $_} = $Superglue::{$_.'::'}
+    for map s{.*::}{}r, @optional;
 
 =head1 SCRIPT MODE
 
+As well as a conventional object-oriented interface, Superglue can
+also be used in script mode by using it with the C<:script> import
+tag. This has some radical effects:
 
+=over
+
+=item Implicit Superglue object
+
+Rather than passing around a C<$sg> object and invoking methods on it,
+you can call the methods like subroutines and they will use a hidden
+global Superglue object.
+
+=item Automatic command-line handling
+
+The global Superglue object is constructed from the command line
+automatically, using C<Superglue::getopt()>.
+
+=back
+
+=head2 Import tags
+
+When your script needs optional features, add these tags when using
+Superglue.
+
+    use Superglue qw(:script);
+
+=over
+
+=item :script
+
+Enable script mode.
+
+=item :restful
+
+Add the L<Superglue::Restful> command-line options in script mode.
+
+=item :webdriver
+
+Add the L<Superglue::WebDriver> command-line options in script mode.
+
+=back
 
 =cut
 
@@ -61,8 +142,8 @@ sub import {
 	my $class = shift;
 	my %tag; @tag{@_} = @_;
 	my $script = delete $tag{':script'};
-	# command line parser options
-	my @getopt;
+	# optional modules to enable
+	my @module;
 	# packages from which we export methods
 	my @pkg = (
 		\%Superglue::,
@@ -72,10 +153,10 @@ sub import {
 	for my $module (keys %optional) {
 		next unless delete $tag{":$module"};
 		push @pkg, $optional{$module};
-		push @getopt, $module;
+		push @module, $module;
 	}
-	my @tag = keys %tag;
-	croak "unknown Superglue import tags @tag" if @tag;
+	my @unknown = keys %tag;
+	croak "unknown Superglue import tags @unknown" if @unknown;
 	# export nothing unless we are in script mode
 	return unless $script;
 	# wrap exported methods with the implicit script self
@@ -90,26 +171,79 @@ sub import {
 			};
 		}
 	}
-	$script_self = Superglue::getopt(@getopt);
+	$script_self = Superglue::getopt(@module);
 }
+
+=head2 Command-line parser
+
+The rough idea is that command-line options correspond to
+attributes that you would pass to C<Superglue-E<gt>new()>.
+
+=over
+
+=item Superglue::getopt(@module)
+
+Parse C<@ARGV>, construct and return a Superglue object. Uses
+L<Pod::Usage> to print help text and usage messages extracted from pod
+in your script, as required by the command line.
+
+To get L<ReGPG::Login> to check credentials files in script mode, set
+C<@main::LOGIN_FIELDS> to value for the C<login_fields> attribute.
+
+The C<@module> list says which of the following optional features to
+include:
+
+=over
+
+=item
+
+restful
+
+=item
+
+webdriver
+
+=back
+
+Each optional module can extend the command line options by defining a
+C<@SUPERGLUE_GETOPT> variable containing a L<Getopt::Long>
+specification, and attributes that correspond to those options.
+
+The synopsis for the extra options should be given in a pod subsection
+like this:
+
+=back
+
+=head2 Command-line options
+
+  [--contact <filename.yml>]    desired contact details
+  [--debug]                     detailed trace
+  [--delegation <filename.db>]  desired delegation records
+  [-h]                          short usage message
+  [--help]                      display manual
+   --login <filename.yml>       credentials
+  [--not-really]                do everything except make changes
+  [--verbose]                   print old and new registration
+   --zone <example.com>         domain to be updated
+
+=cut
 
 sub usage {
 	pod2usage
 	    -exit => 'NOEXIT',
 	    -verbose => 99,
 	    -sections => 'NAME|SYNOPSIS';
-	for my $pkg (\%Superglue::, @optional{@_}) {
-		# get the package name from a symbol table entry that
-		# we know exists, so we can find the package's file,
-		# so we can extract the relevant bit of documentation
-		my $name = *{ $pkg->{SUPERGLUE_EXPORT} }{PACKAGE};
-		my $path = Pod::Find::pod_where { -inc => 1 }, $name;
+	my $h = IO::String->new(my $out);
+	for my $pkg ('Superglue', @optional) {
+		my $path = Pod::Find::pod_where { -inc => 1 }, $pkg;
 		pod2usage
 		    -exit => 'NOEXIT',
 		    -input => $path,
+		    -output => $h,
 		    -verbose => 99,
-		    -sections => 'COMMAND FLAGS';
+		    -sections => '/Command-line options';
 	}
+	$out =~ s{\s*Command-line options:\n*}{\n}g;
 	exit 1;
 }
 
@@ -121,16 +255,23 @@ sub getopt {
 		login|l=s
 		not_really|not-really|n
 		verbose|v
+		zone=s
 	};
 	for my $module (@_) {
-		push @opt, $optional{$module}->{SUPERGLUE_GETOPT};
+		push @opt, @{ $optional{$module}->{SUPERGLUE_GETOPT} };
 	}
-	my %opt;
 
+	my %opt;
 	GetOptions(\%opt, @opt) or exit 1;
 
 	usage @_ if $opt{h};
 	pod2usage -exit => 0, -verbose => 2 if $opt{help};
+
+	# check that optional modules will work after construction
+	$opt{$_} = 1 for @_;
+
+	$opt{login_fields} = $::{LOGIN_FIELDS}
+	    if exists $::{LOGIN_FIELDS};
 
 	my $sg = eval { Superglue->new(%opt) };
 	return $sg if $sg;
@@ -161,7 +302,6 @@ has contact => (
 	is => 'ro',
 	predicate => 1,
 	handles => [@Superglue::Contact::EXPORT_SUPERGLUE],
-	trigger => sub { Superglue::Contact->new(@_) },
     );
 
 =item debug => 1
@@ -214,6 +354,18 @@ has login_fields => (
 	is => 'ro',
     );
 
+=item not_really => $bool
+
+Your script should use this attribute to enable check mode, so that it
+does everything it can short of committing any changes.
+
+=cut
+
+has not_really => (
+	is => 'rw',
+	default => 0,
+    );
+
 =item verbose => 1
 
 Equivalent to C<verbosity =E<gt> LOG_INFO>
@@ -231,6 +383,17 @@ has verbosity => (
 	default => LOG_NOTICE,
     );
 
+=item zone => $domain_name
+
+The zone whose registration details we will update if necessary.
+
+=cut
+
+has zone => (
+	is => 'ro',
+	required => 1,
+    );
+
 =back
 
 =cut
@@ -244,14 +407,14 @@ around BUILDARGS => sub {
 	# from their filenames.
 
 	$args{contact} = Superglue::Contact->new($args{contact})
-	    if exists $args{contact};
+	    if exists $args{contact} and not ref $args{contact};
 
 	$args{delegation} = Superglue::Delegation->new($args{delegation})
-	    if exists $args{delegation};
+	    if exists $args{delegation} and not ref $args{delegation};
 
 	my $fields = $args{login_fields} // [];
 	$args{login} = read_login $args{login}, @$fields
-	    if exists $args{login};
+	    if exists $args{login} and not ref $args{login};
 
 	# Convert boolean `verbose` and `debug` settings
 	# into a `verbosity` level.
@@ -276,9 +439,7 @@ details.
 =cut
 
 our @SUPERGLUE_EXPORT = qw(
-	contact
 	debug
-	delegation
 	has_contact
 	has_delegation
 	login
@@ -291,19 +452,19 @@ our @SUPERGLUE_EXPORT = qw(
 
 =over
 
-=item has_contact
+=item $sg->contact
 
-The C<contact> accessor itself is not exported in script mode, but its
-predicate is exported for checking whether the L<Superglue::Contact>
-methods will work.
+=item $sg->delegation
 
-=item has_delegation
+=item $sg->has_contact
 
-The C<delegation> accessor itself is not exported in script mode, but its
-predicate is exported for checking whether the L<Superglue::Delegation>
-methods will work.
+=item $sg->has_delegation
 
-=item login
+The C<contact> and C<delegation> accessors themselves are not exported
+in script mode, but their predicates are exported for checking whether
+the corresponding methods will work.
+
+=item $sg->login
 
 The L<ReGPG::Login> credentials.
 
