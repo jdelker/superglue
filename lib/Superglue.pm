@@ -244,6 +244,7 @@ sub usage {
 		    -sections => '/Command-line options';
 	}
 	$out =~ s{\s*Command-line options:\n*}{\n}g;
+	print "Options:$out" if $out;
 	exit 1;
 }
 
