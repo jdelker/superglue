@@ -17,16 +17,17 @@ needed.
 
 =cut
 
-use warnings;
 use strictures 2;
+use warnings;
 
 use IPC::System::Simple qw(capturex);
 use Net::DNS;
 use Net::DNS::ZoneFile;
 
-our @EXPORT_SUPERGLUE = qw(
+our @SUPERGLUE_EXPORT = qw(
 	ds
 	ns
+	require_glueless
 );
 
 sub ds {
@@ -52,6 +53,16 @@ sub ns {
 		}
 	}
 	return @ns;
+}
+
+sub require_glueless {
+	my $self = shift;
+	my $ns = $self->{ns};
+	return unless $ns;
+	for my $addr (values %$ns) {
+		$self->error_f("glue is not allowed for this delegation")
+		    if scalar keys %$addr;
+	}
 }
 
 sub new {
