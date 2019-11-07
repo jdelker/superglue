@@ -27,9 +27,8 @@ we mainly explain how they fit together.
 
 =item L<ReGPG::Login>
 
-Used to read encrypted credentials. It only provides a C<login>
-attribute containing plain data that you use to access the
-registration update interface.
+Used to read encrypted credentials. It provides a C<login> attribute
+that you use to access the registration update interface.
 
 =item L<Superglue::Contact>
 
@@ -187,21 +186,14 @@ Parse C<@ARGV>, construct and return a Superglue object. Uses
 L<Pod::Usage> to print help text and usage messages extracted from pod
 in your script, as required by the command line.
 
-To get L<ReGPG::Login> to check credentials files in script mode, set
-C<@main::LOGIN_FIELDS> to value for the C<login_fields> attribute.
-
 The C<@module> list says which of the following optional features to
 include:
 
 =over
 
-=item
+=item * restful
 
-restful
-
-=item
-
-webdriver
+=item * webdriver
 
 =back
 
@@ -271,9 +263,6 @@ sub getopt {
 	# check that optional modules will work after construction
 	$opt{$_} = 1 for @_;
 
-	$opt{login_fields} = $::{LOGIN_FIELDS}
-	    if exists $::{LOGIN_FIELDS};
-
 	my $sg = eval { Superglue->new(%opt) };
 	return $sg if $sg;
 
@@ -340,19 +329,10 @@ has login => (
 	is => 'ro',
 	predicate => 1,
 	required => 1,
-    );
-
-=item login_fields => [qw(username password)]
-
-(optional)
-
-When loading the C<login> file, the C<login_fields> list is passed to
-L<ReGPG::Login> to check that all the required fields are present.
-
-=cut
-
-has login_fields => (
-	is => 'ro',
+	handles => {
+		'login_check' => 'check',
+		'auth_basic' => 'auth_basic',
+	    },
     );
 
 =item not_really => $bool
@@ -413,8 +393,7 @@ around BUILDARGS => sub {
 	$args{delegation} = Superglue::Delegation->new($args{delegation})
 	    if exists $args{delegation} and not ref $args{delegation};
 
-	my $fields = $args{login_fields} // [];
-	$args{login} = read_login $args{login}, @$fields
+	$args{login} = ReGPG::Login->new($args{login})
 	    if exists $args{login} and not ref $args{login};
 
 	# Convert boolean `verbose` and `debug` settings
@@ -440,10 +419,12 @@ details.
 =cut
 
 our @SUPERGLUE_EXPORT = qw(
+	auth_basic
 	debug
 	has_contact
 	has_delegation
 	login
+	login_check
 	notice
 	verbose
 	warning
@@ -468,6 +449,23 @@ the corresponding methods will work.
 =item $sg->login
 
 The L<ReGPG::Login> credentials.
+
+=back
+
+=head2 Login credentials
+
+=over
+
+=item $sg->login_check(@fields)
+
+Handled by ReGPG::Login->check
+
+Unlike most methods, this one is renamed by Superglue to be less
+ambiguous in this context.
+
+=item $sg->auth_basic(@fields)
+
+Handled by ReGPG::Login->auth_basic
 
 =back
 
