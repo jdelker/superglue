@@ -4,75 +4,36 @@ use warnings;
 use strict;
 
 use FindBin;
-use lib "$FindBin::Bin/../lib/superglue/perl5";
+use lib "$FindBin::Bin/../lib";
 
-use Data::Dumper;
-use Deep;
-use JSON::PP;
-use LWP::UserAgent;
-use ScriptDie;
-use Superglue;
+use Superglue qw(:script :restful);
 
-my %opt = Superglue::getopt;
-my $z = $opt{zone};
+login_check qw(password);
+require_glueless;
 
-#my %creds = Superglue::load_kv $opt{creds};
-my %d = Superglue::read_delegation $z;
+base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
 
-Superglue::glueless_delegation %d;
-
-my $ripe_url = 'https://rest.db.ripe.net/ripe/domain';
-
-my $ua = LWP::UserAgent->new( agent => 'superglue/0.0' );
-
-sub ripe_error {
-	my $r = shift;
-	my $error = shift;
-	my $body = $r->content;
-	my $code = $r->code;
-	my $message = $r->message;
-	my @r = $r->redirects;
-	$r[0] = $r if not @r;
-	my $url = $r[0]->request->uri;
-	swarn "$code $message from $url";
-	swarn $error if $error;
-	swarn $body if $body;
-	exit 1;
-}
-
-sub ripe_request {
-	my $req = shift;
-	my $r = $ua->request($req);
-	my $body = $r->content;
-	my $code = $r->code;
-	my $message = $r->message;
-	ripe_error $r, "unexpected non-JSON response"
-	    if $r->header('Content-Type') ne 'application/json';
-	my $j = decode_json $r->content;
-	delete $j->{'terms-and-conditions'};
-	return ($r,$j) if $code eq "200";
+json_error sub {
+	my $json = shift;
 	my @error;
-	for my $e (@{ $j->{errormessages}->{errormessage} }) {
+	for my $e (@{ $json->{errormessages}->{errormessage} }) {
 		my $text = $e->{text};
 		$text =~ s/%s/$_->{value}/ for @{ $e->{args} };
 		push @error, $text;
 	}
-	$r->content(join "\n", @error) if @error;
-	ripe_error $r;
-}
+	return join "\n", @error;
+};
 
-sub ripe_get {
-	my $domain = shift;
-	my $url = "$ripe_url/$domain?unfiltered";
-	my $req = HTTP::Request->new( GET => $url,
-		[ 'Accept' => 'application/json' ]);
-	my ($r,$j) = ripe_request $req;
-	my @obj = @{ $j->{objects}->{object}
-		  ->[0]->{attributes}->{attribute} };
-	return @obj if defined $obj[0]->{value}
-	    and $obj[0]->{value} eq $domain;
-	ripe_error $r, "could not find expected domain in JSON response";
-}
+my $json = GET '?unfiltered';
+
+my @obj = @{ $json->{objects}->{object}
+	     ->[0]->{attributes}->{attribute} };
+
+error "could not find expected zone in RIPE response"
+    unless defined $obj[0]->{value}
+	    and $obj[0]->{value} eq zone;
+
+__END__
 
 sub ripe_put {
 	my $domain = shift;
