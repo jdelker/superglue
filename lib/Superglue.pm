@@ -69,10 +69,10 @@ use Getopt::Long;
 use IO::String;
 use JSON;
 use Moo;
+use POSIX;
 use Pod::Find;
 use Pod::Usage;
 use ReGPG::Login;
-use ScriptDie;
 use Superglue::Contact;
 use Superglue::Delegation;
 use Sys::Syslog qw(:macros);
@@ -270,7 +270,7 @@ sub getopt {
 	return $sg if $sg;
 
 	$@ =~ s{ at \S+ line [0-9.]+$}{};
-	swarn $@;
+	print STDERR "$FindBin::Script: $@\n";
 	usage @_;
 }
 
@@ -294,7 +294,7 @@ format and the methods that the contact object handles.
 has contact => (
 	is => 'ro',
 	predicate => 1,
-	handles => [@Superglue::Contact::EXPORT_SUPERGLUE],
+	handles => [@Superglue::Contact::SUPERGLUE_EXPORT],
     );
 
 =item debug => 1
@@ -315,7 +315,7 @@ handles.
 has delegation => (
 	is => 'ro',
 	predicate => 1,
-	handles => [@Superglue::Delegation::EXPORT_SUPERGLUE],
+	handles => [@Superglue::Delegation::SUPERGLUE_EXPORT],
     );
 
 =item login => $filename
@@ -396,7 +396,7 @@ around BUILDARGS => sub {
 	$args{delegation} = Superglue::Delegation->new($args{delegation})
 	    if exists $args{delegation} and not ref $args{delegation};
 
-	$args{login} = ReGPG::Login->new($args{login})
+	$args{login} = ReGPG::Login->new(filename => $args{login})
 	    if exists $args{login} and not ref $args{login};
 
 	# Convert boolean `verbose` and `debug` settings
@@ -435,6 +435,7 @@ our @SUPERGLUE_EXPORT = qw(
 	verbose_f
 	warning
 	warning_f
+	zone
 );
 
 =head2 Accessors
@@ -456,6 +457,10 @@ the corresponding methods will work.
 =item $sg->login
 
 The L<ReGPG::Login> credentials.
+
+=item $sg->zone
+
+The zone we are dealing with
 
 =back
 
