@@ -64,8 +64,10 @@ use strictures 2;
 use warnings;
 
 use Carp;
+use FindBin;
 use Getopt::Long;
 use IO::String;
+use JSON;
 use Moo;
 use Pod::Find;
 use Pod::Usage;
@@ -74,6 +76,7 @@ use ScriptDie;
 use Superglue::Contact;
 use Superglue::Delegation;
 use Sys::Syslog qw(:macros);
+use Time::HiRes qw(gettimeofday);
 
 use namespace::clean;
 
@@ -421,13 +424,17 @@ details.
 our @SUPERGLUE_EXPORT = qw(
 	auth_basic
 	debug
+	debug_f
+	error
+	error_f
 	has_contact
 	has_delegation
 	login
 	login_check
-	notice
 	verbose
+	verbose_f
 	warning
+	warning_f
 );
 
 =head2 Accessors
@@ -476,7 +483,43 @@ to C<STDERR> prefixed by the name of the script.
 
 =over
 
-=item $sg->debug($message)
+=item $sg->log($message, @objects)
+
+Print the C<$message> unconditionally. In debug mode it is decorated
+with a timestamp, otherwise it is decorated with the script name. The
+objects are pretty-printed as JSON, after the header line containing
+the message.
+
+=cut
+
+sub log {
+	my $self = shift;
+	my $message = shift;
+	if ($self->{verbosity} < LOG_DEBUG) {
+		print "$FindBin::Script: $message\n";
+	} else {
+		my ($seconds, $microseconds) = gettimeofday;
+		my $stamp = strftime "%F %T", localtime $seconds;
+		printf "%s.%03d %s\n", $stamp, $microseconds/1000, $message;
+	}
+	return unless @_;
+	print to_json @_ > 1 ? [ @_ ] : $_[0],
+	    { allow_nonref => 1, canonical => 1, pretty => 1 };
+}
+
+=item $sg->log_f($fmt, @args)
+
+Print a message formatted using C<sprintf>
+
+=cut
+
+sub log_f {
+	return shift->log(sprintf @_);
+}
+
+=item $sg->debug($message, @json)
+
+=item $sg->debug_f($message, @json)
 
 Print the C<$message> if the verbosity is C<LOG_DEBUG>.
 
@@ -484,11 +527,17 @@ Print the C<$message> if the verbosity is C<LOG_DEBUG>.
 
 sub debug {
 	my $self = shift;
-	return swarn @_
+	return $self->log(@_)
 	    unless $self->{verbosity} < LOG_DEBUG;
 }
 
+sub debug_f {
+	return shift->debug(sprintf @_);
+}
+
 =item $sg->verbose($message)
+
+=item $sg->verbose_f($message)
 
 Print the C<$message> if the verbosity is C<LOG_INFO> or higher.
 
@@ -496,23 +545,17 @@ Print the C<$message> if the verbosity is C<LOG_INFO> or higher.
 
 sub verbose {
 	my $self = shift;
-	return swarn @_
+	return $self->log(@_)
 	    unless $self->{verbosity} < LOG_INFO;
 }
 
-=item $sg->notice($message)
-
-Print the C<$message> if the verbosity is C<LOG_NOTICE> or higher.
-
-=cut
-
-sub notice {
-	my $self = shift;
-	return swarn @_
-	    unless $self->{verbosity} < LOG_NOTICE;
+sub verbose_f {
+	return shift->verbose(sprintf @_);
 }
 
 =item $sg->warning($message)
+
+=item $sg->warning_f($message)
 
 Print the C<$message> if the verbosity is C<LOG_WARNING> or higher.
 
@@ -520,8 +563,29 @@ Print the C<$message> if the verbosity is C<LOG_WARNING> or higher.
 
 sub warning {
 	my $self = shift;
-	return swarn @_
+	return $self->log(@_)
 	    unless $self->{verbosity} < LOG_WARNING;
+}
+
+sub warning_f {
+	return shift->warning(sprintf @_);
+}
+
+=item $sg->error($message)
+
+=item $sg->error_f($message)
+
+Print the C<$message> and exits
+
+=cut
+
+sub error {
+	shift->log(@_);
+	exit 1;
+}
+
+sub error_f {
+	return shift->error(sprintf @_);
 }
 
 =back
