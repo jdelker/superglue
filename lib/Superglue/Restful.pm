@@ -17,48 +17,8 @@ use strictures 2;
 use Carp;
 use JSON;
 use LWP::UserAgent;
-use Moo;
-use POSIX;
-use Time::HiRes qw(gettimeofday);
 
-has verbose => (
-	is => 'rw',
-    );
-
-has agent => (
-	is => 'ro',
-	required => 1,
-    );
-
-has uri => (
-	is => 'ro',
-	required => 1,
-    );
-
-has authorization => (
-	is => 'ro',
-    );
-
-# underlying LWP::UserAgent
-has ua => (
-	is => 'ro',
-	lazy => 1,
-	default => sub {
-		my $self = shift;
-		my $agent = $self->agent;
-		$self->{ua} = LWP::UserAgent->new(agent => "Superglue::$agent");
-	},
-    );
-
-########################################################################
-#
-#  stateless utility functions
-#
-
-sub ppjson {
-	return to_json shift,
-	    { allow_nonref => 1, canonical => 1, pretty => 1 };
-}
+# un-exported utilities
 
 sub croak_http {
 	my $r = shift;
@@ -72,74 +32,85 @@ sub croak_http {
 	    $detail // '';
 }
 
-########################################################################
-#
-#  utility methods
-#
+use Moo::Role;
 
-sub trace {
-	my $self = shift;
-	return unless $self->verbose;
-	my ($seconds, $microseconds) = gettimeofday;
-	my $stamp = strftime "%F %T", localtime $seconds;
-	printf "%s.%03d %s\n", $stamp, $microseconds/1000, shift;
-	return unless @_;
-	print ppjson @_;
-}
+our @SUPERGLUE_GETOPT = ();
+
+our @SUPERGLUE_EXPORT = qw(
+	GET
+	PATCH
+	POST
+	PUT
+	base_uri
+	json_error
+);
+
+has base_uri => (
+	is => 'rw',
+    );
+
+# underlying LWP::UserAgent
+has ua => (
+	is => 'ro',
+	lazy => 1,
+	default => sub {
+		my $self = shift;
+		$self->{ua} = LWP::UserAgent->new(agent => "Superglue");
+	},
+    );
+
+has json_error => (
+	is => 'rw',
+    );
 
 sub request {
 	my $self = shift;
 	my $method = shift;
-	my $uri = $self->uri.shift;
-	$self->trace("$method $uri", @_);
+	my $uri = $self->base_uri.shift;
+	$self->debug("$method $uri", @_);
 	my $req = HTTP::Request->new($method, $uri);
-	$req->header('Authorization' => $self->authorization)
-	    if $self->authorization;
+	$req->header('Accept' => 'application/json');
+	$req->header('Authorization' => $self->login->{authorization})
+	    if $self->login->{authorization};
 	$req->header('Content-Type' => 'application/json') if @_;
 	$req->content(encode_json shift) if @_;
 	my $r = $self->ua->request($req);
-	my $agent = $self->agent;
 	my $body = $r->content;
-	croak_http $r, "$agent response is not JSON", $body
+	croak_http $r, "response is not JSON", $body
 	    unless $body =~ m(^[[{]);
 	my $json = decode_json $body;
-	$json = { value => $json } if 'ARRAY' eq ref $json;
 	# hack: WebDriver seems to wrap everything
 	$json = $json->{value}
-	    if exists $json->{value}
+	    if 'HASH' eq ref $json
+	    and exists $json->{value}
 	    and 1 == scalar keys %$json;
-	$self->trace($r->status_line, $json);
-	# xxx: is this too specific to WebDriver?
-	croak_http $r, "$agent request failed", $json->{message}
-	    if $r->is_error;
-	return $json;
+	$self->debug($r->status_line, $json);
+	return $json unless $r->is_error;
+	my $message = $self->json_error
+	    ? $self->json_error->($json)
+	    : to_json $json,
+	    { allow_nonref => 1, canonical => 1, pretty => 1 };
+	croak_http $r, "request failed", $message;
 }
 
-########################################################################
-#
-#  public methods for restful requests
-#
-
-sub get {
+sub GET {
 	my $self = shift;
 	return $self->request(GET => @_);
 }
 
-sub post {
+sub POST {
 	my $self = shift;
 	return $self->request(POST => @_);
 }
 
-sub patch {
+sub PATCH {
 	my $self = shift;
 	return $self->request(PATCH => @_);
 }
 
-sub put {
+sub PUT {
 	my $self = shift;
 	return $self->request(PUT => @_);
 }
-
-########################################################################
 
 1;
