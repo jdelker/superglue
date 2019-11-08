@@ -9,35 +9,56 @@ Superglue::Delegation - DNS delegation records
 Superglue::Delegation loads a zone file and works out what the zone's
 delegation records should be.
 
-=head1 BUGS
-
-At the moment this doesn't help with getting delegation information
-from the registr* or with comparing delegations, so more thinking
-needed.
-
 =cut
 
 use strictures 2;
 use warnings;
 
+use Data::Dumper;
 use IPC::System::Simple qw(capturex);
 use Net::DNS;
 use Net::DNS::ZoneFile;
 
 our @SUPERGLUE_EXPORT = qw(
-	ds
-	ns
+	get_ds
+	get_ns
+	set_ds
+	set_ns
 	require_glueless
 );
 
-sub ds {
+sub add_ds {
 	my $self = shift;
-	my $ds = $self->{DS} // [];
-	return @$ds if wantarray;
-	return join '', map $_->string."\n", @$ds;
+	my $zone = $self->{zone};
+	for my $ds (@_) {
+		$ds = Net::DNS::RR->new("$zone DS $ds")
+		    unless ref $ds;
+		$self->{ds}->{$ds->rdstring} = ();
+	}
 }
 
-sub ns {
+sub get_ds {
+	my $self = shift;
+	my $ds = $self->{ds};
+	return unless $ds;
+	return $ds unless wantarray;
+	my $zone = $self->{zone};
+	return map Net::DNS::RR->new("$zone DS $_"),
+	    sort keys %$ds;
+}
+
+sub add_ns {
+	my $self = shift;
+	my $sub = '.'.$_[0];
+	my $dom = '.'.$self->{zone};
+	if ($_[1] and $dom eq substr $sub, -length $dom) {
+		$self->{ns}->{$_[0]}->{$_[1]} = {};
+	} else {
+		$self->{ns}->{$_[0]} //= {};
+	}
+}
+
+sub get_ns {
 	my $self = shift;
 	my $ns = $self->{ns};
 	return unless $ns;
@@ -70,20 +91,18 @@ sub new {
 	my $self = bless { @_ }, $class;
 	my $file = $self->{file};
 	my $zone = $self->{zone};
+	return $self unless $file;
 	my $zonefile = Net::DNS::ZoneFile->new($file,$zone);
 	my (@ns,@ds,$dnssec);
 	while (my $rr = $zonefile->read) {
 		if ($rr->owner eq $zone and
 		    $rr->type eq 'NS') {
-			$self->{ns}->{$rr->nsdname} = {};
+			$self->add_ns($rr->nsdname);
 		}
 		if ($rr->type eq 'A' or
 		    $rr->type eq 'AAAA') {
-			my $sub = '.'.$rr->owner;
-			my $dom = '.'.$zone;
-			$self->{ns}->{$rr->owner}->{$rr->rdstring} = ()
-			    if exists $self->{ns}->{$rr->owner}
-			    and $dom eq substr $sub, -length $dom;
+			$self->add_ns($rr->owner, $rr->rdstring)
+			    if exists $self->{ns}->{$rr->owner};
 		}
 		if ($rr->owner eq $zone and
 		    $rr->type eq 'DS') {
@@ -98,7 +117,7 @@ sub new {
 	@ds = map Net::DNS::RR->new($_),
 	    capturex 'dnssec-dsfromkey', '-f', $file, $zone
 	    if $dnssec;
-	$self->{DS} = \@ds;
+	$self->add_ds(@ds);
 	return $self;
 }
 
