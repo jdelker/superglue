@@ -243,19 +243,22 @@ sub usage {
 
 sub getopt {
 	my @opt = qw{
+		contact|C=s
 		debug|d
+		delegation|D=s
 		h|?
 		help
-		login|l=s
+		login|L=s
 		not_really|not-really|n
 		verbose|v
-		zone=s
+		zone|Z=s
 	};
 	for my $module (@_) {
 		push @opt, @{ $optional{$module}->{SUPERGLUE_GETOPT} };
 	}
 
 	my %opt;
+	Getopt::Long::Configure qw(posix_default gnu_getopt);
 	GetOptions(\%opt, @opt) or exit 1;
 
 	usage @_ if $opt{h};
@@ -391,11 +394,14 @@ around BUILDARGS => sub {
 	$args{contact} = Superglue::Contact->new($args{contact})
 	    if exists $args{contact} and not ref $args{contact};
 
-	$args{delegation} = Superglue::Delegation->new($args{delegation})
-	    if exists $args{delegation} and not ref $args{delegation};
+	$args{delegation} = Superglue::Delegation->new(
+		zone => $args{zone},
+		file => $args{delegation},
+	    ) if exists $args{delegation} and not ref $args{delegation};
 
-	$args{login} = ReGPG::Login->new(filename => $args{login})
-	    if exists $args{login} and not ref $args{login};
+	$args{login} = ReGPG::Login->new(
+		filename => $args{login},
+	    ) if exists $args{login} and not ref $args{login};
 
 	# Convert boolean `verbose` and `debug` settings
 	# into a `verbosity` level.
