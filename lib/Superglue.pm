@@ -519,7 +519,7 @@ Print a message formatted using C<sprintf>
 =cut
 
 sub log_f {
-	return shift->log(sprintf @_);
+	return shift->log(sprintf shift, @_);
 }
 
 =item $sg->debug($message, @json)
@@ -537,7 +537,7 @@ sub debug {
 }
 
 sub debug_f {
-	return shift->debug(sprintf @_);
+	return shift->debug(sprintf shift, @_);
 }
 
 =item $sg->verbose($message)
@@ -555,7 +555,7 @@ sub verbose {
 }
 
 sub verbose_f {
-	return shift->verbose(sprintf @_);
+	return shift->verbose(sprintf shift, @_);
 }
 
 =item $sg->warning($message)
@@ -573,7 +573,7 @@ sub warning {
 }
 
 sub warning_f {
-	return shift->warning(sprintf @_);
+	return shift->warning(sprintf shift, @_);
 }
 
 =item $sg->error($message)
@@ -590,7 +590,7 @@ sub error {
 }
 
 sub error_f {
-	return shift->error(sprintf @_);
+	return shift->error(sprintf shift, @_);
 }
 
 =back
