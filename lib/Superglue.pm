@@ -167,9 +167,7 @@ sub import {
 		for my $name (@$methods) {
 			my $ref = $pkg->{$name};
 			$main::{$name} = sub {
-				# like return $script_self->$name(@_)
-				unshift @_, $script_self;
-				goto &$ref;
+				return $script_self->$name(@_);
 			};
 		}
 	}
