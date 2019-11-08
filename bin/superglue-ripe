@@ -23,7 +23,7 @@ json_error sub {
 	my @error;
 	for my $e (@{ $json->{errormessages}->{errormessage} }) {
 		my $text = $e->{text};
-		$text =~ s/%s/$_->{value}/ for @{ $e->{args} };
+		$text =~ s/%[ds]/$_->{value}/ for @{ $e->{args} };
 		push @error, $text;
 	}
 	return join "\n", @error;
@@ -38,110 +38,30 @@ error "could not find expected zone in RIPE response"
     unless Compare $old[0],
     { name => 'domain', value => zone };
 
-my $old = Superglue::Delegation->new(zone => zone);
-
 for my $a (@old) {
-	$old->add_ns($a->{value})
-	    if $a->{name} eq 'nserver';
-	$old->add_ds($a->{value})
-	    if $a->{name} eq 'ds-rdata';
+	old_ns $a->{value} if $a->{name} eq 'nserver';
+	old_ds $a->{value} if $a->{name} eq 'ds-rdata';
 }
 
-my $old_ns = $old->get_ns;
-my $new_ns = get_ns;
-my $ns_match = Compare $old_ns, $new_ns;
-debug "current NS records", $old_ns;
-debug "desired NS records", $new_ns;
-verbose_f "NS records %s", $ns_match ? "match" : "differ";
-
-my $old_ds = $old->get_ds;
-my $new_ds = get_ds;
-my $ds_match = Compare $old_ds, $new_ds;
-debug "current DS records", $old_ds;
-debug "desired DS records", $new_ds;
-verbose_f "DS records %s", $ds_match ? "match" : "differ";
-
-__END__
-
-sub ripe_put {
-	my $domain = shift;
-	my $password = shift;
-	my $url = "$ripe_url/$domain?password=$password";
-	$url .= "&dry-run=true" if $opt{'not-really'};
-	my $obj = { objects    => { object    => [
-		  { attributes => { attribute => \@_
-		} } ] } };
-	my $req = HTTP::Request->new( PUT => $url,
-		[ 'Content-Type' => 'application/json',
-		  'Accept' => 'application/json' ],
-		encode_json $obj);
-debug $req->content;
-	return ripe_request $req;
-}
-
-my @old = ripe_get($opt{zone});
-
-debug Dumper \@old;
-
-
-@ns = sort map lc, @ns;
-@ds = sort @ds;
-
-$d{NS} = \@ns unless exists $d{NS};
-$d{DS} = \@ds unless exists $d{DS};
-
-my $nseq = deepeq \@ns, $d{NS};
-my $dseq = deepeq \@ds, $d{DS};
-
-if ($nseq) {
-	verbose "$z NS records match";
-} else {
-	verbose "$z Old NS records";
-	verbose "$z NS $_" for @ns;
-	verbose "$z New NS records";
-	verbose "$z NS $_" for @{$d{NS}};
-}
-
-if ($dseq) {
-	verbose "$z DS records match" if $dseq;
-} else {
-	verbose "$z Old DS records";
-	verbose "$z DS $_" for @ds;
-	verbose "$z New DS records";
-	verbose "$z DS $_" for @{$d{DS}};
-}
-
-exit 0 if $nseq and $dseq;
+exit if delegation_matches;
 
 my @new;
 for my $a (@old) {
 	push @new, $a unless $a->{name} eq 'nserver'
 			  or $a->{name} eq 'ds-rdata';
 }
-for my $ns (@{$d{NS}}) {
+for my $ns (keys %{new_ns()}) {
 	push @new, { name => 'nserver', value => $ns };
 }
-for my $ds (@{$d{DS}}) {
+for my $ds (keys %{new_ds()}) {
 	push @new, { name => 'ds-rdata', value => $ds };
 }
 push @new, { name => 'changed', value => 'hostmaster@cam.ac.uk' };
 
-debug Dumper \@new;
+my $new = { objects  => { object    => [
+	{ attributes => { attribute => \@new } } ] } };
 
-ripe_put $z, 'lskjda', @new;
+my $password = login()->{password};
+my $dry_run = not_really ? '&dry-run=true' : '';
 
-__END__
-
-=head1 NAME
-
-superglue-ripe - synchronize DNS delegation with RIPE
-
-=head1 SYNOPSIS
-
-B<superglue-ripe> [B<--debug>|B<-d>] [B<--verbose>|B<-v>]
-    [B<--not-really>|B<-n>] B<--creds>=I<file>|B<-c>I<file> I<domain>
-
-B<superglue-ripei> B<-h>|B<--help>
-
-=head1 DESCRIPTION
-
+PUT "?password=$password$dry_run", $new;
