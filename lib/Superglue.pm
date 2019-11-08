@@ -64,6 +64,7 @@ use strictures 2;
 use warnings;
 
 use Carp;
+use Data::Compare;
 use FindBin;
 use Getopt::Long;
 use IO::String;
@@ -313,10 +314,26 @@ handles.
 
 =cut
 
-has delegation => (
+has new_delegation => (
 	is => 'ro',
-	predicate => 1,
-	handles => [@Superglue::Delegation::SUPERGLUE_EXPORT],
+	handles => {
+		'new_ds' => 'get_ds',
+		'new_ns' => 'get_ns',
+	},
+    );
+
+has old_delegation => (
+	is => 'ro',
+	handles => {
+		'old_ds' => 'add_ds',
+		'old_ns' => 'add_ns',
+	},
+	lazy => 1,
+	default => sub {
+		my $self = shift;
+		$self->{old_delegation} =
+		    Superglue::Delegation->new(zone => $self->{zone});
+	},
     );
 
 =item login => $filename
@@ -394,10 +411,11 @@ around BUILDARGS => sub {
 	$args{contact} = Superglue::Contact->new($args{contact})
 	    if exists $args{contact} and not ref $args{contact};
 
-	$args{delegation} = Superglue::Delegation->new(
+	my $delegation = delete $args{delegation};
+	$args{new_delegation} = Superglue::Delegation->new(
 		zone => $args{zone},
-		file => $args{delegation},
-	    ) if exists $args{delegation} and not ref $args{delegation};
+		file => $delegation,
+	    ) if $delegation;
 
 	$args{login} = ReGPG::Login->new(
 		filename => $args{login},
@@ -429,12 +447,18 @@ our @SUPERGLUE_EXPORT = qw(
 	auth_basic
 	debug
 	debug_f
+	delegation_matches
 	error
 	error_f
 	has_contact
-	has_delegation
 	login
 	login_check
+	old_ds
+	old_ns
+	new_ds
+	new_ns
+	not_really
+	require_glueless
 	verbose
 	verbose_f
 	warning
@@ -442,35 +466,75 @@ our @SUPERGLUE_EXPORT = qw(
 	zone
 );
 
-=head2 Accessors
+=head2 Delegations
 
 =over
 
-=item $sg->contact
+=item $sg->new_ds
 
-=item $sg->delegation
+=item $sg->new_ns
 
-=item $sg->has_contact
+Get the new delegation records that were provided on the command line
+or when constructing the Superglue object. Equivalent to
+C<$sg-E<gt>new_delegation-E<gt>get_ds> and
+C<$sg-E<gt>new_delegation-E<gt>get_ns>.
 
-=item $sg->has_delegation
+=item $sg->old_ds
 
-The C<contact> and C<delegation> accessors themselves are not exported
-in script mode, but their predicates are exported for checking whether
-the corresponding methods will work.
+=item $sg->old_ns
 
-=item $sg->login
+Add old delegation records that have been read from the registr*
+interface. Equivalent to C<$sg-E<gt>old_delegation-E<gt>add_ds> and
+C<$sg-E<gt>old_delegation-E<gt>add_ns>.
 
-The L<ReGPG::Login> credentials.
+=item $sg->require_glueless
 
-=item $sg->zone
+Raise an error if the any of the new nameservers have glue.
 
-The zone we are dealing with
+=cut
+
+sub require_glueless {
+	my $self = shift;
+	return unless $self->new_delegation;
+	my $ns = $self->new_ns;
+	for my $addr (values %$ns) {
+		$self->error_f("glue is not allowed for this delegation")
+		    if scalar keys %$addr;
+	}
+}
+
+=item $sg->delegation_matches
+
+Returns true if the old and new delegations are the same. Prints
+informative messages in debug and verbose mode.
+
+=cut
+
+sub delegation_matches {
+	my $self = shift;
+	my $ret = 1;
+	for my $rr (qw(NS DS)) {
+		my $get = "get_" . lc $rr;
+		my $old = $self->old_delegation->$get();
+		my $new = $self->new_delegation->$get();
+		my $match = Compare $old, $new;
+		$self->debug("current $rr records", $old);
+		$self->debug("desired $rr records", $new);
+		$self->verbose_f("$rr records %s", $match ? "match" : "differ");
+		$ret &&= $match;
+	}
+	return $ret;
+}
 
 =back
 
 =head2 Login credentials
 
 =over
+
+=item $sg->login
+
+The L<ReGPG::Login> credentials.
 
 =item $sg->login_check(@fields)
 

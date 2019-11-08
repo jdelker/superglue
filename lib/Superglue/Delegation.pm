@@ -14,18 +14,11 @@ delegation records should be.
 use strictures 2;
 use warnings;
 
-use Data::Dumper;
 use IPC::System::Simple qw(capturex);
 use Net::DNS;
 use Net::DNS::ZoneFile;
 
-our @SUPERGLUE_EXPORT = qw(
-	get_ds
-	get_ns
-	set_ds
-	set_ns
-	require_glueless
-);
+our @SUPERGLUE_EXPORT = ();
 
 sub add_ds {
 	my $self = shift;
@@ -74,16 +67,6 @@ sub get_ns {
 		}
 	}
 	return @ns;
-}
-
-sub require_glueless {
-	my $self = shift;
-	my $ns = $self->{ns};
-	return unless $ns;
-	for my $addr (values %$ns) {
-		$self->error_f("glue is not allowed for this delegation")
-		    if scalar keys %$addr;
-	}
 }
 
 sub new {
