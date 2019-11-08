@@ -3,13 +3,18 @@
 use warnings;
 use strict;
 
+use Data::Compare;
 use FindBin;
+
 use lib "$FindBin::Bin/../lib";
 
 use Superglue qw(:script :restful);
 
 login_check qw(password);
 require_glueless;
+
+error "RIPE domains do not have normal contact information"
+    if has_contact;
 
 base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
 
@@ -26,12 +31,35 @@ json_error sub {
 
 my $json = GET '?unfiltered';
 
-my @obj = @{ $json->{objects}->{object}
+my @old = @{ $json->{objects}->{object}
 	     ->[0]->{attributes}->{attribute} };
 
 error "could not find expected zone in RIPE response"
-    unless defined $obj[0]->{value}
-	    and $obj[0]->{value} eq zone;
+    unless Compare $old[0],
+    { name => 'domain', value => zone };
+
+my $old = Superglue::Delegation->new(zone => zone);
+
+for my $a (@old) {
+	$old->add_ns($a->{value})
+	    if $a->{name} eq 'nserver';
+	$old->add_ds($a->{value})
+	    if $a->{name} eq 'ds-rdata';
+}
+
+my $old_ns = $old->get_ns;
+my $new_ns = get_ns;
+my $ns_match = Compare $old_ns, $new_ns;
+debug "current NS records", $old_ns;
+debug "desired NS records", $new_ns;
+verbose_f "NS records %s", $ns_match ? "match" : "differ";
+
+my $old_ds = $old->get_ds;
+my $new_ds = get_ds;
+my $ds_match = Compare $old_ds, $new_ds;
+debug "current DS records", $old_ds;
+debug "desired DS records", $new_ds;
+verbose_f "DS records %s", $ds_match ? "match" : "differ";
 
 __END__
 
@@ -55,13 +83,6 @@ my @old = ripe_get($opt{zone});
 
 debug Dumper \@old;
 
-my @ns;
-my @ds;
-
-for my $a (@old) {
-	push @ns, $a->{value} if $a->{name} eq 'nserver';
-	push @ds, $a->{value} if $a->{name} eq 'ds-rdata';
-}
 
 @ns = sort map lc, @ns;
 @ds = sort @ds;
