@@ -15,8 +15,10 @@ use warnings;
 use strictures 2;
 
 use Carp;
+use HTTP::Request::Common qw();
 use JSON;
 use LWP::UserAgent;
+use URI;
 
 # un-exported utilities
 
@@ -44,6 +46,7 @@ our @SUPERGLUE_EXPORT = qw(
 	PUT
 	base_uri
 	json_error
+	post_form
 	user_agent
 );
 
@@ -68,10 +71,35 @@ has json_error => (
 	is => 'rw',
     );
 
+sub uri {
+	my $self = shift;
+	my $uri = shift;
+	if (my $base = $self->base_uri) {
+		return URI->new_abs($uri, $base);
+	} else {
+		return $uri;
+	}
+}
+
+sub post_form {
+	my $self = shift;
+	my $uri = $self->uri(shift);
+	$self->debug("post form $uri");
+	my $req = HTTP::Request::Common::POST($uri,
+	    'Content-Type' => 'form-data',
+	    'Content' => [ @_ ]);
+	$req->header('Authorization' => $self->{login}->{authorization})
+	    if $self->{login}->{authorization};
+	my $r = $self->user_agent->request($req);
+	$self->debug($r->status_line);
+	return $r->content unless $r->is_error;
+	croak_http $r, "request failed", $r->content;
+}
+
 sub request {
 	my $self = shift;
 	my $method = shift;
-	my $uri = $self->base_uri.shift;
+	my $uri = $self->uri(shift);
 	$self->debug("$method $uri", @_);
 	my $req = HTTP::Request->new($method, $uri);
 	$req->header('Accept' => 'application/json');
