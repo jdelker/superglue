@@ -37,12 +37,14 @@ use Moo::Role;
 our @SUPERGLUE_GETOPT = ();
 
 our @SUPERGLUE_EXPORT = qw(
+	DELETE
 	GET
 	PATCH
 	POST
 	PUT
 	base_uri
 	json_error
+	user_agent
 );
 
 has base_uri => (
@@ -50,12 +52,15 @@ has base_uri => (
     );
 
 # underlying LWP::UserAgent
-has ua => (
+has user_agent => (
 	is => 'ro',
 	lazy => 1,
 	default => sub {
 		my $self = shift;
-		$self->{ua} = LWP::UserAgent->new(agent => "Superglue");
+		$self->{user_agent} = LWP::UserAgent->new(
+			agent => "Superglue",
+			ssl_opts => { verify_hostname => 1 },
+		    );
 	},
     );
 
@@ -70,11 +75,11 @@ sub request {
 	$self->debug("$method $uri", @_);
 	my $req = HTTP::Request->new($method, $uri);
 	$req->header('Accept' => 'application/json');
-	$req->header('Authorization' => $self->login->{authorization})
-	    if $self->login->{authorization};
+	$req->header('Authorization' => $self->{login}->{authorization})
+	    if $self->{login}->{authorization};
 	$req->header('Content-Type' => 'application/json') if @_;
 	$req->content(encode_json shift) if @_;
-	my $r = $self->ua->request($req);
+	my $r = $self->user_agent->request($req);
 	my $body = $r->content;
 	croak_http $r, "response is not JSON", $body
 	    unless $body =~ m(^[[{]);
@@ -93,24 +98,24 @@ sub request {
 	croak_http $r, "request failed", $message;
 }
 
+sub DELETE {
+	return shift->request(DELETE => @_);
+}
+
 sub GET {
-	my $self = shift;
-	return $self->request(GET => @_);
+	return shift->request(GET => @_);
 }
 
 sub POST {
-	my $self = shift;
-	return $self->request(POST => @_);
+	return shift->request(POST => @_);
 }
 
 sub PATCH {
-	my $self = shift;
-	return $self->request(PATCH => @_);
+	return shift->request(PATCH => @_);
 }
 
 sub PUT {
-	my $self = shift;
-	return $self->request(PUT => @_);
+	return shift->request(PUT => @_);
 }
 
 1;
