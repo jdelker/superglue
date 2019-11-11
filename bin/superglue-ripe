@@ -43,6 +43,7 @@ json_error sub {
 		$text =~ s/%[ds]/$_->{value}/ for @{ $e->{args} };
 		push @error, $text;
 	}
+	chomp @error;
 	return join "\n", @error;
 };
 
@@ -67,7 +68,7 @@ sub ripe_object {
 
 base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
 
-my $try_again = 5;
+my $attempt = 1;
 
 TRY_AGAIN:
 
@@ -80,7 +81,11 @@ for my $a (@old) {
 	old_ds $a->{value} if $a->{name} eq 'ds-rdata';
 }
 
-exit if delegation_matches;
+if (delegation_matches) {
+	notice "delegation matches after $attempt tries"
+	    if $attempt > 1;
+	exit;
+}
 
 my @new = ();
 for my $a (@old) {
@@ -110,11 +115,11 @@ http_error $ignore_timeout;
 my $r = PUT "?password=$password", $new;
 
 if (not defined $r) {
-	if ($try_again--) {
+	if ($attempt++ > 5) {
+		error "giving up after $attempt tries";
+	} else {
 		warning "update timed out, retrying";
 		goto TRY_AGAIN;
-	} else {
-		error "giving up";
 	}
 }
 
