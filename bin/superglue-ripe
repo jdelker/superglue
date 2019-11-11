@@ -66,10 +66,21 @@ for my $ds (keys %{new_ds()}) {
 }
 push @new, { name => 'changed', value => 'hostmaster@cam.ac.uk' };
 
+# Although the RIPE REST API has a 'dry-run' parameter, the timeout
+# problems mean that it is no use to us. So just print the new object
+# that we want.
+
+if (not_really) {
+	for (@new) {
+		my ($n,$v) = @$_{qw{name value}};
+		notice "$n: $v";
+	}
+	exit;
+}
+
 my $new = { objects  => { object    => [
 	{ attributes => { attribute => \@new } } ] } };
 
 my $password = uri_escape login()->{password};
-my $dry_run = not_really ? '&dry-run=true' : '';
 
-PUT "?password=$password$dry_run", $new;
+PUT "?password=$password", $new;
