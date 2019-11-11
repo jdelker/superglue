@@ -24,6 +24,7 @@ use URI;
 
 sub croak_http {
 	my $r = shift;
+	return unless @_;
 	my $summary = shift;
 	my $detail = shift;
 	croak sprintf "%s\n%s %s\n%s\n%s",
@@ -45,6 +46,7 @@ our @SUPERGLUE_EXPORT = qw(
 	POST
 	PUT
 	base_uri
+	http_error
 	json_error
 	post_form
 	user_agent
@@ -65,6 +67,10 @@ has user_agent => (
 			ssl_opts => { verify_hostname => 1 },
 		    );
 	},
+    );
+
+has http_error => (
+	is => 'rw',
     );
 
 has json_error => (
@@ -109,7 +115,10 @@ sub request {
 	$req->content(encode_json shift) if @_;
 	my $r = $self->user_agent->request($req);
 	my $body = $r->content;
-	croak_http $r, "response is not JSON", $body
+	return croak_http $r,
+	    $self->http_error
+	    ? $self->http_error->($r)
+	    : ("response is not JSON" => $body)
 	    unless $body =~ m(^[[{]);
 	my $json = decode_json $body;
 	# hack: WebDriver seems to wrap everything
@@ -119,11 +128,11 @@ sub request {
 	    and 1 == scalar keys %$json;
 	$self->debug($r->status_line, $json);
 	return $json unless $r->is_error;
-	my $message = $self->json_error
+	return croak_http $r,
+	    $self->json_error
 	    ? $self->json_error->($json)
-	    : to_json $json,
-	    { allow_nonref => 1, canonical => 1, pretty => 1 };
-	croak_http $r, "request failed", $message;
+	    : ("request failed" => to_json $json,
+		{ allow_nonref => 1, canonical => 1, pretty => 1 });
 }
 
 sub DELETE {
