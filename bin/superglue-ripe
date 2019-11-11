@@ -19,7 +19,8 @@ require_glueless;
 error "RIPE domains do not have normal contact information"
     if has_contact;
 
-base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
+# Extracting error messages from the RIPE REST API is rather
+# complicated.
 
 json_error sub {
 	my $json = shift;
@@ -32,6 +33,10 @@ json_error sub {
 	return join "\n", @error;
 };
 
+# As far as I know, the RIPE REST API is the only way to retrieve
+# whois objects over TLS, so use it to read the current state.
+
+base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
 my $json = GET '?unfiltered';
 
 my @old = @{ $json->{objects}->{object}
