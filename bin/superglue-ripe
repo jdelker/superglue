@@ -7,6 +7,7 @@ use strict;
 
 use Data::Compare;
 use FindBin;
+use HTTP::Date;
 use URI::Escape;
 
 use lib "$FindBin::Bin/../lib";
@@ -18,6 +19,18 @@ require_glueless;
 
 error "RIPE domains do not have normal contact information"
     if has_contact;
+
+# When the server times out it returns an HTML response which needs
+# separate handling wrt the normal JSON responses.
+
+my $ignore_timeout = sub {
+	my $r = shift;
+	return ("response is not JSON" => $r->content)
+	    unless $r->status_line =~ m{502 Proxy Error}
+	    and str2time($r->headers->header('date')) + 50
+	      < str2time($r->headers->header('client-date'));
+	return;
+};
 
 # Extracting error messages from the RIPE REST API is rather
 # complicated.
@@ -33,18 +46,34 @@ json_error sub {
 	return join "\n", @error;
 };
 
+sub ripe_object {
+	my $json = shift;
+	my @attr = @{ $json->{objects}->{object}
+		  ->[0]->{attributes}->{attribute} };
+	error "could not find expected zone in RIPE response"
+	    unless Compare $attr[0],
+	    { name => 'domain', value => zone };
+	for my $a (@attr) {
+		# strip extraneous bumf
+		delete $a->{link};
+		delete $a->{'referenced-type'};
+		debug join ': ', @$a{qw{name value}};
+	}
+	return @attr;
+}
+
 # As far as I know, the RIPE REST API is the only way to retrieve
 # whois objects over TLS, so use it to read the current state.
 
 base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
-my $json = GET '?unfiltered';
 
-my @old = @{ $json->{objects}->{object}
-	     ->[0]->{attributes}->{attribute} };
+my $try_again = 5;
 
-error "could not find expected zone in RIPE response"
-    unless Compare $old[0],
-    { name => 'domain', value => zone };
+TRY_AGAIN:
+
+http_error 0;
+
+my @old = ripe_object GET '?unfiltered';
 
 for my $a (@old) {
 	old_ns $a->{value} if $a->{name} eq 'nserver';
@@ -53,7 +82,7 @@ for my $a (@old) {
 
 exit if delegation_matches;
 
-my @new;
+my @new = ();
 for my $a (@old) {
 	push @new, $a unless $a->{name} eq 'nserver'
 			  or $a->{name} eq 'ds-rdata';
@@ -64,23 +93,31 @@ for my $ns (keys %{new_ns()}) {
 for my $ds (keys %{new_ds()}) {
 	push @new, { name => 'ds-rdata', value => $ds };
 }
-push @new, { name => 'changed', value => 'hostmaster@cam.ac.uk' };
+my $new = { objects  => { object    => [
+	{ attributes => { attribute => \@new } } ] } };
+ripe_object $new;
 
 # Although the RIPE REST API has a 'dry-run' parameter, the timeout
 # problems mean that it is no use to us. So just print the new object
 # that we want.
 
-if (not_really) {
-	for (@new) {
-		my ($n,$v) = @$_{qw{name value}};
-		notice "$n: $v";
-	}
-	exit;
-}
-
-my $new = { objects  => { object    => [
-	{ attributes => { attribute => \@new } } ] } };
+exit if not_really;
 
 my $password = uri_escape login()->{password};
 
-PUT "?password=$password", $new;
+http_error $ignore_timeout;
+
+my $r = PUT "?password=$password", $new;
+
+if (not defined $r) {
+	if ($try_again--) {
+		warning "update timed out, retrying";
+		goto TRY_AGAIN;
+	} else {
+		error "giving up";
+	}
+}
+
+ripe_object $r;
+notice "delegation updated";
+exit 0;
