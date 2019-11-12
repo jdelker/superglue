@@ -1,6 +1,84 @@
 #!/usr/bin/perl
 
-# https://github.com/RIPE-NCC/whois/wiki/WHOIS-REST-API
+=head1 NAME
+
+superglue-ripe - update domain registrations at RIPE
+
+=head1 SYNOPSIS
+
+superglue-ripe [options]
+
+See L<superglue(1)> for the common superglue options.
+
+=head1 DESCRIPTION
+
+The RIPE-NCC handles reverse DNS for network allocations in Europe
+and the Middle East.
+
+=head2 Contact details
+
+The B<superglue-ripe> script is not able to update contact details,
+and will raise an error when invoked with the C<--contact> option.
+
+Unlike most domain registries (which include a complete copy of the
+contact details with each registration) the RIPE whois database has a
+structure with contact details in separate objects that are referred
+to indirectly by domain (and other) objects. This means that there is
+much less of a problem with contact details getting accidentally out
+of sync, and no need for bulk updates of contact details.
+
+=head2 Delegation restrictions
+
+Name servers for zones in the reverse DNS must not have names in the
+reverse DNS. For example, the name servers for C<2.0.192.in-addr.arpa>
+must have names like C<ns1.example.com> not names like
+C<ns1.2.0.192.in-addr.arpa>. The B<superglue-ripe> script will raise
+an error if the delegation would require glue records.
+
+When you update a domain in the RIPE database, the new delegation is
+checked with L<Zonemaster(3pm)> and the update is rejected if the
+checks do not pass.
+
+=head2 Performance and reliability
+
+The Zonemaster checks are very slow which causes problems with
+request timeouts.
+
+The B<superglue-ripe> script uses a retry loop, repeating the
+fetch-compare-update sequence until the RIPE database matches the
+desired delegation, or there is an error other than a timeout. It
+gives up after 5 attempts. The maximum client-side timeout for each
+attempt is 3 minutes.
+
+As of late 2019 we have found that an update takes a couple of
+attempts, and each attempt times out on the server side after 1
+minute. The second attempt is able to report errors arising from the
+first update attempt.
+
+=head2 Not-really mode
+
+Although the RIPE REST API has a C<dry-run> parameter, the timeout
+problems mean that it swallows errors so it is not useful.
+
+In C<--not-really> mode, the B<superglue-ripe> script prints what the
+new domain object should look like after an update, instead of trying
+to perform the update.
+
+=head2 Choice of API
+
+There are several ways of accessing the RIPE database.
+
+The B<superglue-ripe> script first gets the current state of a
+domain's delegation from the database. The only way to do this over a
+secure channel is using the REST API, which returns database objects
+in elaborate XML or JSON forms. Superglue uses the JSON version.
+
+For updates, B<superglue-ripe> also uses the REST API. (Another option
+is to use C<syncupdates> that accepts objects in C<whois> format. This
+is simpler and might be preferable if it were possible to get objects
+in whois format securely.)
+
+=cut
 
 use warnings;
 use strict;
@@ -65,9 +143,6 @@ sub ripe_object {
 	return @attr;
 }
 
-# As far as I know, the RIPE REST API is the only way to retrieve
-# whois objects over TLS, so use it to read the current state.
-
 base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
 
 for (my $attempt = 1; ; $attempt++) {
@@ -103,10 +178,6 @@ for (my $attempt = 1; ; $attempt++) {
 		{ attributes => { attribute => \@new } } ] } };
 	ripe_object $new;
 
-	# Although the RIPE REST API has a 'dry-run' parameter, the
-	# timeout problems mean that it is no use to us. XXX should
-	# not_really mode be more verbose by default?
-
 	if (not_really) {
 		notice "not really updating";
 		exit;
@@ -129,3 +200,19 @@ for (my $attempt = 1; ; $attempt++) {
 		warning "update timed out, retrying";
 	}
 }
+
+=head1 AUTHOR
+
+Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
+at Cambridge University Information Services.
+L<https://opensource.org/licenses/0BSD>
+
+=head1 SEE ALSO
+
+L<superglue(1)>, L<Superglue(3pm)>, L<Superglue::Restful(3pm)>
+
+RIPE database documentation,
+L<https://www.ripe.net/support/documentation/ripe-database-documentation>
+
+RIPE database REST API,
+L<https://github.com/RIPE-NCC/whois/wiki/WHOIS-REST-API>
