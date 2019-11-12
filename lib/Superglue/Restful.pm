@@ -22,15 +22,23 @@ use URI;
 
 # un-exported utilities
 
+sub censor_ripe {
+	my $uri = shift;
+	# gross hack to mitigate design error in RIPE REST API
+	my $urx = $uri =~ s{([?]password=)[^&;]*}{${1}********}r;
+	return ($uri,$urx);
+}
+
 sub croak_http {
 	my $r = shift;
 	return unless @_;
 	my $summary = shift;
 	my $detail = shift;
+	my ($uri,$urx) = censor_ripe $r->request->uri;
 	croak sprintf "%s\n%s %s\n%s\n%s",
 	    $summary,
 	    $r->request->method,
-	    $r->request->uri,
+	    $urx,
 	    $r->status_line,
 	    $detail // '';
 }
@@ -89,8 +97,8 @@ sub uri {
 
 sub post_form {
 	my $self = shift;
-	my $uri = $self->uri(shift);
-	$self->debug("post form $uri");
+	my ($uri,$urx) = censor_ripe $self->uri(shift);
+	$self->debug("post form $urx");
 	my $req = HTTP::Request::Common::POST($uri,
 	    'Content-Type' => 'form-data',
 	    'Content' => [ @_ ]);
@@ -105,8 +113,8 @@ sub post_form {
 sub request {
 	my $self = shift;
 	my $method = shift;
-	my $uri = $self->uri(shift);
-	$self->debug("$method $uri", @_);
+	my ($uri,$urx) = censor_ripe $self->uri(shift);
+	$self->debug("$method $urx", @_);
 	my $req = HTTP::Request->new($method, $uri);
 	$req->header('Accept' => 'application/json');
 	$req->header('Authorization' => $self->{login}->{authorization})
