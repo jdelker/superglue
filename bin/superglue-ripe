@@ -47,6 +47,8 @@ json_error sub {
 	return join "\n", @error;
 };
 
+# Common debug logging and superficial checks.
+
 sub ripe_object {
 	my $json = shift;
 	my @attr = @{ $json->{objects}->{object}
@@ -68,61 +70,59 @@ sub ripe_object {
 
 base_uri 'https://rest.db.ripe.net/ripe/domain/'.zone;
 
-my $attempt = 1;
+for (my $attempt = 1; ; $attempt++) {
 
-TRY_AGAIN:
+	# Disable the timeout handler when retrying.
+	http_error 0;
 
-http_error 0;
+	my @old = ripe_object GET '?unfiltered';
 
-my @old = ripe_object GET '?unfiltered';
+	for my $a (@old) {
+		old_ns $a->{value} if $a->{name} eq 'nserver';
+		old_ds $a->{value} if $a->{name} eq 'ds-rdata';
+	}
 
-for my $a (@old) {
-	old_ns $a->{value} if $a->{name} eq 'nserver';
-	old_ds $a->{value} if $a->{name} eq 'ds-rdata';
-}
+	if (delegation_matches) {
+		notice "delegation matches after $attempt tries"
+		    if $attempt > 1;
+		exit;
+	}
 
-if (delegation_matches) {
-	notice "delegation matches after $attempt tries"
-	    if $attempt > 1;
-	exit;
-}
+	my @new = ();
+	for my $a (@old) {
+		push @new, $a unless $a->{name} eq 'nserver'
+				  or $a->{name} eq 'ds-rdata';
+	}
+	for my $ns (keys %{new_ns()}) {
+		push @new, { name => 'nserver', value => $ns };
+	}
+	for my $ds (keys %{new_ds()}) {
+		push @new, { name => 'ds-rdata', value => $ds };
+	}
+	my $new = { objects  => { object    => [
+		{ attributes => { attribute => \@new } } ] } };
+	ripe_object $new;
 
-my @new = ();
-for my $a (@old) {
-	push @new, $a unless $a->{name} eq 'nserver'
-			  or $a->{name} eq 'ds-rdata';
-}
-for my $ns (keys %{new_ns()}) {
-	push @new, { name => 'nserver', value => $ns };
-}
-for my $ds (keys %{new_ds()}) {
-	push @new, { name => 'ds-rdata', value => $ds };
-}
-my $new = { objects  => { object    => [
-	{ attributes => { attribute => \@new } } ] } };
-ripe_object $new;
+	# Although the RIPE REST API has a 'dry-run' parameter, the
+	# timeout problems mean that it is no use to us. XXX should
+	# not_really mode be more verbose by default?
 
-# Although the RIPE REST API has a 'dry-run' parameter, the timeout
-# problems mean that it is no use to us. So just print the new object
-# that we want.
+	exit if not_really;
 
-exit if not_really;
+	my $password = uri_escape login()->{password};
 
-my $password = uri_escape login()->{password};
+	http_error $ignore_timeout;
 
-http_error $ignore_timeout;
+	my $r = PUT "?password=$password", $new;
 
-my $r = PUT "?password=$password", $new;
-
-if (not defined $r) {
-	if ($attempt++ > 5) {
+	if (defined $r) {
+		ripe_object $r;
+		notice "delegation updated";
+		exit 0;
+	} elsif ($attempt > 5) {
 		error "giving up after $attempt tries";
+		exit 1;
 	} else {
 		warning "update timed out, retrying";
-		goto TRY_AGAIN;
 	}
 }
-
-ripe_object $r;
-notice "delegation updated";
-exit 0;
