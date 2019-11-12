@@ -107,7 +107,10 @@ for (my $attempt = 1; ; $attempt++) {
 	# timeout problems mean that it is no use to us. XXX should
 	# not_really mode be more verbose by default?
 
-	exit if not_really;
+	if (not_really) {
+		notice "not really updating";
+		exit;
+	}
 
 	my $password = uri_escape login()->{password};
 
