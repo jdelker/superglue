@@ -1,0 +1,78 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+superglue - update domain name registrations
+
+=head1 SYNOPSIS
+
+superglue-janet [options]
+
+superglue-mythic-beasts [options]
+
+superglue-ripe [options]
+
+=head2 Superglue options
+
+  [--contact <filename.yml>]    desired contact details
+  [--debug]                     detailed trace
+  [--delegation <filename.db>]  desired delegation records
+  [-h]                          short usage message
+  [--help]                      display manual
+   --login <filename.yml>       credentials
+  [--not-really]                do everything except make changes
+  [--verbose]                   print old and new registration
+   --zone <example.com>         domain to be updated
+
+=head2 Superglue::WebDriver options
+
+  [--foreground]             Visible browser (default is headless)
+  [--reconnect]              Do not start new WebDriver server
+  [--retain]                 Do not quit the browser on exit
+  [--session <uuid>]         Use existing browser and WebDriver server
+  [--host <127.0.0.1>]       WebDriver server host name
+  [--port <4444>]            WebDriver server port number
+
+=head1 DESCRIPTION
+
+Superglue is a collection of scripts for updating domain name
+registration details.
+
+=cut
+
+use strictures 2;
+use warnings;
+
+use Pod::Usage;
+
+if (grep $_ eq '--help', @ARGV) {
+	pod2usage -exit => 0, -verbose => 2;
+} else {
+	print <<USAGE;
+Name:
+    superglue - update domain registrations
+
+Usage:
+    superglue-janet [options]
+
+    superglue-mythic-beasts [options]
+
+    superglue-ripe [options]
+
+USAGE
+	exit 1;
+}
+
+=head1 AUTHOR
+
+Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
+at Cambridge University Information Services.
+L<https://opensource.org/licenses/0BSD>
+
+=head1 SEE ALSO
+
+L<superglue(1)>, L<ReGPG::Login>, L<Superglue(3pm)>,
+L<Superglue::Contact>, L<Superglue::Delegation>,
+L<Superglue::Restful(3pm)>, L<Superglue::WebDriver>
+
+=cut

@@ -28,7 +28,8 @@ we mainly explain how they fit together.
 =item L<ReGPG::Login>
 
 Used to read encrypted credentials. It provides a C<login> attribute
-that you use to access the registration update interface.
+in Superglue objects that you use to access the registration update
+interface.
 
 =item L<Superglue::Contact>
 
@@ -49,7 +50,7 @@ out if a change is needed.
 =item L<Superglue::Restful>
 
 Optional support for JSON-over-HTTP interfaces that provides handy
-C<get> and C<post> methods on the Superglue object.
+C<GET> and C<POST> (etc.) methods on the Superglue object.
 
 =item L<Superglue::WebDriver>
 
@@ -132,11 +133,13 @@ Enable script mode.
 
 =item :restful
 
-Add the L<Superglue::Restful> command-line options in script mode.
+Note that the script uses L<Superglue::Restful>. There aren't any
+extra Restful command-line options.
 
 =item :webdriver
 
-Add the L<Superglue::WebDriver> command-line options in script mode.
+Note that the script uses L<Superglue::WebDriver>, and handle the
+extra WebDriver command-line options.
 
 =back
 
@@ -183,67 +186,61 @@ sub import {
 The rough idea is that command-line options correspond to
 attributes that you would pass to C<Superglue-E<gt>new()>.
 
-=over
-
-=item Superglue::getopt(@module)
-
-Parse C<@ARGV>, construct and return a Superglue object. Uses
-L<Pod::Usage> to print help text and usage messages extracted from pod
-in your script, as required by the command line.
-
-The C<@module> list says which of the following optional features to
-include:
+The C<@module> list in the following subtroutines says which of the
+optional features to include. (There is only one at the moment.)
 
 =over
 
-=item * restful
-
-=item * webdriver
+=item * Superglue::WebDriver
 
 =back
 
-Each optional module can extend the command line options by defining a
-C<@SUPERGLUE_GETOPT> variable containing a L<Getopt::Long>
-specification, and attributes that correspond to those options.
+=over
 
-The synopsis for the extra options should be given in a pod subsection
-like this:
+=item Superglue::usage(@module)
 
-=back
-
-=head2 Command-line options
-
-  [--contact <filename.yml>]    desired contact details
-  [--debug]                     detailed trace
-  [--delegation <filename.db>]  desired delegation records
-  [-h]                          short usage message
-  [--help]                      display manual
-   --login <filename.yml>       credentials
-  [--not-really]                do everything except make changes
-  [--verbose]                   print old and new registration
-   --zone <example.com>         domain to be updated
+Print out short usage hints for the current script. The message is
+extracted from the script's embedded POD (for its name and synopsis)
+and from L<superglue(1)> for the description of the options including
+any optional modules.
 
 =cut
 
 sub usage {
+	my $h = IO::String->new(my $out);
 	pod2usage
 	    -exit => 'NOEXIT',
+	    -output => $h,
 	    -verbose => 99,
 	    -sections => 'NAME|SYNOPSIS';
-	my $h = IO::String->new(my $out);
-	for my $pkg ('Superglue', @optional) {
-		my $path = Pod::Find::pod_where { -inc => 1 }, $pkg;
-		pod2usage
-		    -exit => 'NOEXIT',
-		    -input => $path,
-		    -output => $h,
-		    -verbose => 99,
-		    -sections => '/Command-line options';
-	}
-	$out =~ s{\s*Command-line options:\n*}{\n}g;
-	print "Options:$out" if $out;
+	my @sections = map "SYNOPSIS/$_ options",
+	    'Superglue', @optional;
+	pod2usage
+	    -exit => 'NOEXIT',
+	    -input => "$FindBin::Dir/superglue",
+	    -output => $h,
+	    -verbose => 99,
+	    -sections => [@sections];
+	$out =~ s{\s*See superglue[^\n]*}{};
+	print $out;
 	exit 1;
 }
+
+=item Superglue::getopt(@module)
+
+Parse C<@ARGV>, construct and return a Superglue object. If the
+command line requires help, short usage messages are printed by
+C<Superglue::usage>; long help messages (the script's embedded POD)
+are printed using L<Pod::Usage>.
+
+Each optional module can extend the command line options by defining a
+C<@SUPERGLUE_GETOPT> variable containing a L<Getopt::Long>
+specification, and attributes that correspond to those options.
+The documentation for the extra options is in L<superglue(1)>.
+
+=back
+
+=cut
 
 sub getopt {
 	my @opt = qw{
@@ -481,6 +478,14 @@ our @SUPERGLUE_EXPORT = qw(
 =head2 Delegations
 
 =over
+
+=item $sg->new_delegation
+
+=item $sg->old_delegation
+
+Superglue::Delegation objects representing the desired (new) state of
+the delegation provided by the user, and the current (old) state of
+the delegation as obtained from the registry.
 
 =item $sg->new_ds
 
