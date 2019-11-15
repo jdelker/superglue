@@ -220,14 +220,13 @@ sub whois {
 
 =head1 AUTHOR
 
-  Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
-  at Cambridge University Information Services
-  You may do anything with this. It has no warranty.
-  <https://creativecommons.org/publicdomain/zero/1.0/>
+Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
+at Cambridge University Information Services.
+L<https://opensource.org/licenses/0BSD>
 
 =head1 SEE ALSO
 
-superglue(1), YAML(3pm)
+L<superglue(1)>, L<Superglue(3pm)>, L<YAML(3pm)>
 
 =cut
 

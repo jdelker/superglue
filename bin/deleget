@@ -1,16 +1,15 @@
 #!/bin/sh
 #
 # Written by Tony Finch <dot@dotat.at> <fanf2@cam.ac.uk>
-# at Cambridge University Information Services
-# You may do anything with this. It has no warranty.
-# http://creativecommons.org/publicdomain/zero/1.0/
+# at Cambridge University Information Services.
+# https://opensource.org/licenses/0BSD
 
 set -e
 
 usage() {
 	echo 1>&2 "usage: deleget [-ARlm] [-a auth] [-r rec] [-s ns] <domain>"
 	echo 1>&2 "	-A		Use only authoritative queries"
-	echo 1>&2 "	-R		Use only recursiveive queries"
+	echo 1>&2 "	-R		Use only recursive queries"
 	echo 1>&2 "	-l		Send auth queries to localhost"
 	echo 1>&2 "	-m		Auth queries to zone's primary master"
 	echo 1>&2 "	-a auth		Server for authoritative queries"
