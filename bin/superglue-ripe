@@ -15,6 +15,11 @@ See L<superglue(1)> for the common superglue options.
 The RIPE-NCC handles reverse DNS for network allocations in Europe
 and the Middle East.
 
+=head2 Login credentials
+
+All that is required is a C<password> field, which can authenticate
+one of the domain object's C<mnt-by> users in the RIPE database.
+
 =head2 Contact details
 
 The B<superglue-ripe> script is not able to update contact details,
