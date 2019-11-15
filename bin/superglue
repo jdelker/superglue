@@ -24,7 +24,7 @@ superglue-ripe [options]
   [--verbose]                   print old and new registration
    --zone <example.com>         domain to be updated
 
-=head2 Superglue::WebDriver options
+=head2 WebDriver options
 
   [--foreground]             Visible browser (default is headless)
   [--reconnect]              Do not start new WebDriver server

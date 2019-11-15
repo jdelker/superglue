@@ -207,14 +207,13 @@ any optional modules.
 =cut
 
 sub usage {
+	my @sections = map "SYNOPSIS/(?i:$_) options", 'Superglue', @_;
 	my $h = IO::String->new(my $out);
 	pod2usage
 	    -exit => 'NOEXIT',
 	    -output => $h,
 	    -verbose => 99,
 	    -sections => 'NAME|SYNOPSIS';
-	my @sections = map "SYNOPSIS/$_ options",
-	    'Superglue', @optional;
 	pod2usage
 	    -exit => 'NOEXIT',
 	    -input => "$FindBin::Dir/superglue",
