@@ -168,10 +168,10 @@ for (my $attempt = 1; ; $attempt++) {
 		push @new, $a unless $a->{name} eq 'nserver'
 				  or $a->{name} eq 'ds-rdata';
 	}
-	for my $ns (keys %{new_ns()}) {
+	for my $ns (sort keys %{new_ns()}) {
 		push @new, { name => 'nserver', value => $ns };
 	}
-	for my $ds (keys %{new_ds()}) {
+	for my $ds (sort keys %{new_ds()}) {
 		push @new, { name => 'ds-rdata', value => $ds };
 	}
 	my $new = { objects  => { object    => [
