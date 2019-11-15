@@ -1,8 +1,8 @@
-package WebDriver;
+package Superglue::WebDriver;
 
 =head1 NAME
 
-WebDriver - script-style web browser remote control
+Superglue::WebDriver - web browser remote control
 
 =head1 DESCRIPTION
 
@@ -22,185 +22,69 @@ designed to be invoked in "poetry style" with a minimum of punctuation.
 use warnings;
 use strict;
 
-use Carp;
-use Exporter qw(import);
-use JSON;
-use LWP::UserAgent;
-use POSIX;
-use Time::HiRes qw(gettimeofday);
+use Sys::Syslog qw(:macros);
 
-our @EXPORT = qw{
-	webdriver_init
-	navigate
-	page_title
-	js_sync
-	elem
-	elems
-	sub_elem
-	has_elem
-	elem_attr
-	elem_prop
-	elem_text
-	elem_selected
-	clear
-	click
-	fill
-	pause
-	wait_for
+use Moo::Role;
+
+requires qw(
+	DELETE
+	GET
+	POST
+	verbose
+);
+
+our @SUPERGLUE_GETOPT = qw{
+	foreground!
+	host=s
+	port=i
+	reconnect!
+	retain!
+	session=s
 };
 
-# the special JSON key name whose value is an element UUID
-my $ELEMENT = 'element-6066-11e4-a52e-4f735466cecf';
+has webdriver => (
+	is => 'ro',
+    );
 
-# used by all our HTTP requests
-my $ua = LWP::UserAgent->new(agent => 'Superglue::WebDriver');
+has foreground => (
+	is => 'ro',
+    );
 
-# global state
+has reconnect => (
+	is => 'ro',
+    );
 
-my $verbose;
+has retain => (
+	is => 'ro',
+    );
 
-my $session; # UUID of this session
+has host => (
+	is => 'ro',
+	default => '127.0.0.1',
+    );
 
-my $wd; # base URL of WebDriver server
-my $wds; # "$wd/session/$session"
+has port => (
+	is => 'ro',
+	default => 4444,
+    );
 
-my $driver_pid;
-my $retain;
+has session => (
+	is => 'ro',
+    );
 
-END {
+has driver_pid => (
+	is => 'rw',
+    );
+
+before DEMOLISH => sub {
+	my $self = shift;
+	return unless $self->{webdriver};
+	return if $self->retain;
 	# delete WebDriver session
-	$ua->delete($wds) if $wds and not $retain;
+	$self->DELETE('');
 	# clean up subprocess
-	kill INT => $driver_pid if $driver_pid;
-}
-
-########################################################################
-#
-#  utility functions for error handling and debug tracing
-#
-
-sub ppjson {
-	return to_json shift, { allow_nonref => 1, pretty => 1 };
-}
-
-sub trace {
-	return unless $verbose;
-	my ($seconds, $microseconds) = gettimeofday;
-	my $stamp = strftime "%F %T", localtime $seconds;
-	printf "%s.%03d %s\n", $stamp, $microseconds/1000, shift;
-	return unless @_;
-	print ppjson @_;
-}
-
-sub croak_http {
-	my $r = shift;
-	my $summary = shift;
-	my $detail = shift;
-	croak sprintf "%s\n%s %s\n%s\n%s",
-	    $summary,
-	    $r->request->method,
-	    $r->request->uri,
-	    $r->status_line,
-	    $detail // '';
-}
-
-sub unwrap {
-	my $r = shift;
-	my $body = $r->content;
-	croak_http $r, 'WebDriver response is not JSON', $body
-	    unless $body =~ m(^[{]);
-	my $json = decode_json $body;
-	# webdriver seems to wrap everything
-	$json = $json->{value}
-	    if exists $json->{value}
-	    and 1 == scalar keys %$json;
-	trace $r->status_line, $json;
-	croak_http $r, 'WebDriver request failed', $json->{message}
-	    if $r->is_error;
-	return $json;
-}
-
-sub POST {
-	my $uri = $wds.shift;
-	my $json = shift;
-	trace "POST $uri", $json;
-	return unwrap $ua->post
-	    ($uri,
-	     'Content-Type' => 'text/json',
-	     'Content' => encode_json $json);
-}
-
-sub GET {
-	my $uri = $wds.shift;
-	trace "GET $uri";
-	return unwrap $ua->get($uri);
-}
-
-########################################################################
-
-=head1 LOCATING HTML ELEMENTS
-
-The WebDriver protocol allows you to locate elements using any of the
-following strategies:
-
-=over
-
-=item C<css selector>
-
-=item C<link text>
-
-=item C<partial link text>
-
-=item C<tag name>
-
-=item C<xpath>
-
-=back
-
-Many of the subroutines in this library take element locators as arguments,
-which can be:
-
-=over
-
-=item A pair of a strategy and a selector
-
-The pair is represented as a hash ref containing one key and one value,
-like C<{ I<STRATEGY> =E<gt> I<SELECTOR> }>.
-The strategies are listed above.
-The meaning of the selector depends on the strategy.
-
-=item A string
-
-This is an abbreviation for C<{ 'css selector' =E<gt> I<STRING> }>
-
-=item A previously located element
-
-Located elements are returned by C<elem> and other subroutines.
-
-=back
-
-=cut
-
-# util: normalize a location strategy
-sub using {
-	my $elem = shift;
-	# the argument is like { 'tag name' => 'h1' }
-	# (wrong if there is more than one hash item!)
-	return { using => keys %$elem,
-		 value => values %$elem }
-	    if ref $elem;
-	# the usual case is just a string
-	return { using => 'css selector',
-		 value => $elem };
-}
-
-# util: a previously located element
-sub is_elem {
-	my $json = shift;
-	return ref $json && exists $json->{$ELEMENT};
-}
-
-=head1 SUBROUTINES
+	kill INT => $self->driver_pid if $self->driver_pid;
+};
 
 =over
 
@@ -253,52 +137,139 @@ Enable debug logging.
 
 =cut
 
-sub webdriver_init {
-	my %opt = @_;
-	$verbose = $opt{verbose};
-	$retain = $opt{retain};
-	my $host = $opt{host} // '127.0.0.1';
-	my $port = $opt{port} // '4444';
-	$wd = "http://$host:$port";
-	if ($opt{session}) {
-		$session = $opt{session};
-	} else {
-		unless ($opt{reconnect}) {
-			$driver_pid = fork;
-			die "fork: $!\n" unless defined $driver_pid;
-			if ($driver_pid == 0) {
-				my @cmd = qw(geckodriver);
-				push @cmd, '--host' => $host;
-				push @cmd, '--port' => $port;
-				if ($opt{verbose}) {
-					push @cmd, '--log' => 'trace'
-				} else {
-					push @cmd, '--log' => 'fatal'
-				}
-				exec @cmd
-				    or die "exec @cmd: $!\n";
+after BUILD => sub {
+	my $self = shift;
+	return unless $self->{webdriver};
+	$self->base_uri(sprintf "http://%s:%s/", $self->host, $self->port);
+	unless ($self->session or $self->reconnect) {
+		$self->driver_pid(fork);
+		$self->error("fork: $!") unless defined $self->driver_pid;
+		if ($self->driver_pid == 0) {
+			my @cmd = qw(geckodriver);
+			push @cmd, '--host' => $self->host;
+			push @cmd, '--port' => $self->port;
+			if ($self->verbosity < LOG_INFO) {
+				push @cmd, '--log' => 'fatal'
+			} else {
+				push @cmd, '--log' => 'trace'
 			}
+			exec @cmd or die "exec @cmd: $!\n";
 		}
+	}
+	unless ($self->session) {
 		my $caps = {};
 		# allow 2 seconds when waiting for elements to appear
 		$caps->{timeouts}->{implicit} = 2_000;
 		# default page load timeout is 5 minutes
-		$caps->{timeouts}->{pageLoad} = 60_000;
+		$caps->{timeouts}->{pageLoad} = 30_000;
 		# annoyingly, geckodriver returns a moz:headless capability
 		# to us, but we have to write it this way in a request
 		$caps->{'moz:firefoxOptions'}->{args}
-		    = [ '-headless' ] unless $opt{foreground};
+		    = [ '-headless' ] unless $self->foreground;
 		# empty prefix for first request
-		$wds = '';
-		my $r = POST "$wd/session", {
+		my $r = $self->POST('/session', {
 			capabilities => { alwaysMatch => $caps }
-		    };
-		$session = $r->{sessionId};
-		die "could not establish WebDriver session to $wd\n"
-		    unless defined $session;
+		    });
+		$self->{session} = $r->{sessionId};
+		$self->error_f("could not establish WebDriver session to %s",
+			       $self->base_uri)
+		    unless defined $self->session;
 	}
-	$wds = "$wd/session/$session";
+	$self->base_uri(sprintf "http://%s:%s/session/%s/",
+			$self->host, $self->port, $self->session);
+};
+
+########################################################################
+
+=head1 LOCATING HTML ELEMENTS
+
+The WebDriver protocol allows you to locate elements using any of the
+following strategies:
+
+=over
+
+=item C<css selector>
+
+=item C<link text>
+
+=item C<partial link text>
+
+=item C<tag name>
+
+=item C<xpath>
+
+=back
+
+Many of the subroutines in this library take element locators as arguments,
+which can be:
+
+=over
+
+=item A pair of a strategy and a selector
+
+The pair is represented as a hash ref containing one key and one value,
+like C<{ I<STRATEGY> =E<gt> I<SELECTOR> }>.
+The strategies are listed above.
+The meaning of the selector depends on the strategy.
+
+=item A string
+
+This is an abbreviation for C<{ 'css selector' =E<gt> I<STRING> }>
+
+=item A previously located element
+
+Located elements are returned by C<elem> and other subroutines.
+
+=back
+
+=cut
+
+
+# the special JSON key name whose value is an element UUID
+my $ELEMENT = 'element-6066-11e4-a52e-4f735466cecf';
+
+
+# util: normalize a location strategy
+sub using {
+	my $elem = shift;
+	# the argument is like { 'tag name' => 'h1' }
+	# (wrong if there is more than one hash item!)
+	return { using => keys %$elem,
+		 value => values %$elem }
+	    if ref $elem;
+	# the usual case is just a string
+	return { using => 'css selector',
+		 value => $elem };
 }
+
+# util: a previously located element
+sub is_elem {
+	my $json = shift;
+	return ref $json && exists $json->{$ELEMENT};
+}
+
+=head1 SUBROUTINES
+
+=cut
+
+our @SUPERGLUE_EXPORT = qw{
+	navigate
+	page_title
+	js_sync
+	elem
+	elems
+	sub_elem
+	has_elem
+	elem_attr
+	elem_prop
+	elem_text
+	elem_selected
+	clear
+	click
+	fill
+	pause
+	wait_for
+};
 
 =item navigate I<URL>
 
@@ -307,8 +278,10 @@ Send the web browser to the I<URL>. Returns null.
 =cut
 
 sub navigate {
-	POST '/url', { url => shift };
+	shift->POST('url', { url => shift });
 }
+
+__END__
 
 =item page_title
 
