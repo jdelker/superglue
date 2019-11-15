@@ -81,7 +81,10 @@ use Time::HiRes qw(gettimeofday);
 
 use namespace::clean;
 
-our @optional = qw( Superglue::Restful );
+our @optional = qw(
+	Superglue::Restful
+	Superglue::WebDriver
+);
 
 # Mix in optional parts, before we try to grab their symbol tables.
 with @optional;
@@ -432,6 +435,13 @@ around BUILDARGS => sub {
 	return $class->$orig(%args);
 };
 
+# nothing extra to do in constructor or destructor by default,
+# but we need to provide a place for mixins to hook in
+
+sub BUILD { }
+
+sub DEMOLISH { }
+
 =head1 METHODS
 
 The methods described below are available as subroutines in
@@ -458,6 +468,8 @@ our @SUPERGLUE_EXPORT = qw(
 	new_ds
 	new_ns
 	not_really
+	notice
+	notice_f
 	require_glueless
 	verbose
 	verbose_f
@@ -518,9 +530,15 @@ sub delegation_matches {
 		my $old = $self->old_delegation->$get();
 		my $new = $self->new_delegation->$get();
 		my $match = Compare $old, $new;
-		$self->debug("current $rr records", $old);
-		$self->debug("desired $rr records", $new);
-		$self->verbose_f("$rr records %s", $match ? "match" : "differ");
+		if ($match) {
+			$self->verbose("$rr records match");
+			$self->debug("current $rr records", $old);
+			$self->debug("desired $rr records", $new);
+		} else {
+			$self->notice("$rr records differ");
+			$self->verbose("current $rr records", $old);
+			$self->verbose("desired $rr records", $new);
+		}
 		$ret &&= $match;
 	}
 	return $ret;
@@ -568,8 +586,9 @@ the message.
 sub log {
 	my $self = shift;
 	my $message = shift;
+	my $zone = $self->zone;
 	if ($self->{verbosity} < LOG_DEBUG) {
-		print "$FindBin::Script: $message\n";
+		print "$FindBin::Script ($zone): $message\n";
 	} else {
 		my ($seconds, $microseconds) = gettimeofday;
 		my $stamp = strftime "%F %T", localtime $seconds;
@@ -624,6 +643,24 @@ sub verbose {
 
 sub verbose_f {
 	return shift->verbose(sprintf shift, @_);
+}
+
+=item $sg->notice($message)
+
+=item $sg->notice_f($message)
+
+Print the C<$message> if the verbosity is C<LOG_NOTICE> or higher.
+
+=cut
+
+sub notice {
+	my $self = shift;
+	return $self->log(@_)
+	    unless $self->{verbosity} < LOG_NOTICE;
+}
+
+sub notice_f {
+	return shift->notice(sprintf shift, @_);
 }
 
 =item $sg->warning($message)
