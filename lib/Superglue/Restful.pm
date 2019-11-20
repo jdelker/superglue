@@ -120,6 +120,8 @@ sub request {
 	    : ("request failed" => $self->ppjson($json));
 }
 
+=item $json = $sg->DELETE($uri)
+
 =item $json = $sg->GET($uri)
 
 =item $json = $sg->PATCH($uri, $body)
@@ -131,6 +133,10 @@ sub request {
 Abbreviated versions of C<$sg-E<gt>request()>
 
 =cut
+
+sub DELETE {
+	return shift->request(DELETE => @_);
+}
 
 sub GET {
 	return shift->request(GET => @_);
@@ -146,21 +152,6 @@ sub POST {
 
 sub PUT {
 	return shift->request(PUT => @_);
-}
-
-=item $json = $sg->DEL($uri)
-
-Abbreviated version of C<$sg-E<gt>request(DELETE => $uri)>
-
-Unfortunately the DELETE HTTP method name collides with Perl's
-destructor method name, so we have to change it.
-
-=cut
-
-# only fools and horses work
-sub DEL {
-	my $self = shift;
-	return shift->request(DELETE => @_);
 }
 
 =item $sg->post_form($url, %fields)
@@ -303,19 +294,13 @@ For getting access to the underlying L<LWP::UserAgent> object.
 
 =cut
 
-# underlying LWP::UserAgent
-has user_agent => (
-	is => 'ro',
-	lazy => 1,
-	default => sub {
-		my $self = shift;
-		$self->{user_agent} = LWP::UserAgent->new(
-			agent => "Superglue",
-			ssl_opts => { verify_hostname => 1 },
-		    );
-	},
-    );
-
+sub user_agent {
+	my $self = shift;
+	return $self->{user_agent} //= LWP::UserAgent->new(
+		agent => "Superglue",
+		ssl_opts => { verify_hostname => 1 },
+	    );
+}
 
 =back
 
