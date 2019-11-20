@@ -218,15 +218,15 @@ sub whois {
 	}
 }
 
+=head1 SEE ALSO
+
+L<superglue(1)>, L<Superglue(3pm)>, L<YAML(3pm)>
+
 =head1 AUTHOR
 
 Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
 at Cambridge University Information Services.
 L<https://opensource.org/licenses/0BSD>
-
-=head1 SEE ALSO
-
-L<superglue(1)>, L<Superglue(3pm)>, L<YAML(3pm)>
 
 =cut
 

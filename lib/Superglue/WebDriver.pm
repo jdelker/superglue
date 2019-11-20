@@ -245,6 +245,8 @@ Located elements are returned by C<$sg->elem> and other methods.
 
 =head1 METHODS
 
+=over
+
 =cut
 
 our @SUPERGLUE_EXPORT = qw{
@@ -278,7 +280,7 @@ sub navigate {
 
 =item $sg->page_title
 
-Returns the text of the page title
+Returns the text of the page title.
 
 =cut
 
@@ -496,9 +498,11 @@ sub wait_for {
 
 =head1 ERRORS
 
-The subroutines call C<croak> when they fail; see L<Carp(3)>.
+The methods call C<croak> when they fail; see L<Carp(3)>.
 
 =head1 SEE ALSO
+
+L<Superglue(3pm)>, L<Superglue::Restful(3pm)>
 
 The W3C WebDriver protocol specification L<https://www.w3.org/TR/webdriver1/>
 
@@ -506,10 +510,9 @@ Mozilla Firefox B<geckodriver> L<https://github.com/mozilla/geckodriver>
 
 =head1 AUTHOR
 
-  Written by Tony Finch <dot@dotat.at> <fanf2@cam.ac.uk>
-  at Cambridge University Information Services
-  You may do anything with this. It has no warranty.
-  <http://creativecommons.org/publicdomain/zero/1.0/>
+Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
+at Cambridge University Information Services.
+L<https://opensource.org/licenses/0BSD>
 
 =cut
 

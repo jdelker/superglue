@@ -319,17 +319,17 @@ has user_agent => (
 
 =back
 
-=head1 AUTHOR
-
-Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
-at Cambridge University Information Services.
-L<https://opensource.org/licenses/0BSD>
-
 =head1 SEE ALSO
 
 L<superglue(1)>, L<ReGPG::Login>, L<Superglue(3pm)>,
 L<Superglue::Contact>, L<Superglue::Delegation>,
 L<Superglue::Restful(3pm)>, L<Superglue::WebDriver>
+
+=head1 AUTHOR
+
+Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
+at Cambridge University Information Services.
+L<https://opensource.org/licenses/0BSD>
 
 =cut
 
