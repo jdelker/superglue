@@ -7,30 +7,53 @@ Superglue::WebDriver - web browser remote control
 =head1 DESCRIPTION
 
 The W3C WebDriver protocol is a standard way to control a browser for
-testing or automation, by making JSON-over-HTTP requests. It is known
-to work with B<geckodriver> and B<Firefox>.
+testing or automation, by making JSON-over-HTTP requests. This
+WebDriver client is known to work with B<geckodriver> and B<Firefox>.
 
-This module provides script style helper functions for WebDriver
-clients. "Script style" means that this module aims to minimize the
-amount of boilerplate needed to use it. It uses global state to hold
-things like the WebDriver session so there is no need to pass around
-an object reference, and it exports a lot of subroutines that are
-designed to be invoked in "poetry style" with a minimum of punctuation.
+This module is a L<Moo::Role> mixin that relies on L<Superglue::Restful>
+for lower-level HTTP and JSON support.
 
 =cut
 
 use warnings;
 use strict;
 
+use Carp;
 use Sys::Syslog qw(:macros);
+
+# Utility subtroutines that are not exported as methods.
+
+# A special JSON key name whose value is an element UUID
+my $ELEMENT = 'element-6066-11e4-a52e-4f735466cecf';
+
+# This handles the cases explained under LOCATING HTML ELEMENTS below,
+# except for previously-located elements which are handled by $sg->elem.
+sub using {
+	my $elem = shift;
+	# the argument is like { 'tag name' => 'h1' }
+	# (wrong if there is more than one hash item!)
+	return { using => keys %$elem,
+		 value => values %$elem }
+	    if ref $elem;
+	# the usual case is just a string
+	return { using => 'css selector',
+		 value => $elem };
+}
+
+# Check that the argument is previously located element.
+sub is_elem {
+	my $json = shift;
+	return ref $json && exists $json->{$ELEMENT};
+}
 
 use Moo::Role;
 
 requires qw(
-	DELETE
+	DEL
 	GET
 	POST
 	verbose
+	user_agent
 );
 
 our @SUPERGLUE_GETOPT = qw{
@@ -81,57 +104,55 @@ before DEMOLISH => sub {
 	return unless $self->{webdriver};
 	return if $self->retain;
 	# delete WebDriver session
-	$self->DELETE('');
+	$self->DEL('');
 	# clean up subprocess
 	kill INT => $self->driver_pid if $self->driver_pid;
 };
 
-=over
+=head1 ATTRIBUTES
 
-=item webdriver_init I<OPTIONS>
-
-Starts a WebDriver session. This usually involves starting
-B<geckodriver> which in turn starts Firefox.
-OPTIONS is a list of pairs:
+When constructing a L<Superglue> object, you can provide the following
+attributes to configure WebDriver.
 
 =over
 
-=item foreground => I<BOOL>
+=item webdriver => 1
+
+Enable WebDriver. The attributes listed below are ignored if WebDriver
+is not enabled.
+
+=item foreground => 1
 
 Start Firefox with a GUI, so you can watch what happens.
 By default Firefox is passed the B<-headless> option.
 
-=item host => I<ADDRESS>
+=item host => $ip_address
 
 IP address of the WebDriver server, by default C<127.0.0.1>.
 This is used in WebDriver URLs, and is passed to
 C<geckodriver --host>.
 
-=item port => I<NUMBER>
+=item port => $port_number
 
 Port of the WebDriver server, by default C<4444>.
 This is used in WebDriver URLs, and is passed to
 C<geckodriver --port>.
 
-=item reconnect => I<BOOL>
+=item reconnect => 1
 
 Connect to an existing WebDriver server, otherwise the default is to
 start a new instance of B<geckodriver>. We always reconnect if the
 B<session> option is given.
 
-=item retain => I<BOOL>
+=item retain => 1
 
 Do not close the session when the script is complete. By default the session
 is closed, which makes the browser quit.
 
-=item session => I<UUID>
+=item session => $uuid
 
 Re-use an existing WebDriver session with the given UUID. This avoids
 starting a new instance of Firefox.
-
-=item verbose => I<BOOL>
-
-Enable debug logging.
 
 =back
 
@@ -218,37 +239,11 @@ This is an abbreviation for C<{ 'css selector' =E<gt> I<STRING> }>
 
 =item A previously located element
 
-Located elements are returned by C<elem> and other subroutines.
+Located elements are returned by C<$sg->elem> and other methods.
 
 =back
 
-=cut
-
-
-# the special JSON key name whose value is an element UUID
-my $ELEMENT = 'element-6066-11e4-a52e-4f735466cecf';
-
-
-# util: normalize a location strategy
-sub using {
-	my $elem = shift;
-	# the argument is like { 'tag name' => 'h1' }
-	# (wrong if there is more than one hash item!)
-	return { using => keys %$elem,
-		 value => values %$elem }
-	    if ref $elem;
-	# the usual case is just a string
-	return { using => 'css selector',
-		 value => $elem };
-}
-
-# util: a previously located element
-sub is_elem {
-	my $json = shift;
-	return ref $json && exists $json->{$ELEMENT};
-}
-
-=head1 SUBROUTINES
+=head1 METHODS
 
 =cut
 
@@ -271,9 +266,9 @@ our @SUPERGLUE_EXPORT = qw{
 	wait_for
 };
 
-=item navigate I<URL>
+=item $sg->navigate($url)
 
-Send the web browser to the I<URL>. Returns null.
+Send the web browser to the I<$url>. Returns null.
 
 =cut
 
@@ -281,171 +276,179 @@ sub navigate {
 	shift->POST('url', { url => shift });
 }
 
-__END__
-
-=item page_title
+=item $sg->page_title
 
 Returns the text of the page title
 
 =cut
 
 sub page_title {
-	return GET '/title';
+	return shift->GET('title');
 }
 
-=item js_sync I<script> [I<args...>]
+=item $sg->js_sync($script)
 
-Run I<script> in the browser and wait for it to complete.
-
-[ I am not sure how the arguments are used - the webdriver
-spec seems not to include them when calling the script. ]
+Run I<$script> in the browser and wait for it to complete.
 
 =cut
 
+# I am not sure how the arguments are used - the webdriver
+# spec seems not to include them when calling the script.
+
 sub js_sync {
-	POST '/execute/sync', { script => shift, args => [ @_ ] };
+	shift->POST('execute/sync', { script => shift, args => [ @_ ] });
 }
 
-=item elem I<LOCATOR>
+=item $sg->elem($locator)
 
-Returns a located element.
+Returns a located element, as described under L</LOCATING HTML ELEMENTS>
+above.
 
 =cut
 
 sub elem {
+	my $self = shift;
 	my $elem = shift;
 	return $elem if is_elem $elem; # pass through
-	return POST '/element', using $elem;
+	return $self->POST('element', using $elem);
 }
 
-=item elems I<LOCATOR>
+=item $sg->elems($locator)
 
 Returns a reference to an array of located elements.
 
 =cut
 
 sub elems {
-	return POST "/elements", using @_;
+	return shift->POST('elements', using shift);
 }
 
-=item has_elem I<LOCATOR>
+=item $sg->has_elem($locator)
 
-Returns true if an element was located.
+Returns true if an element was located. This is an abbreviation for
+calling C<$sg-E<gt>elems> and checking for a non-empty result.
 
 =cut
 
 sub has_elem {
-	my $elems = elems @_;
+	my $elems = shift->elems(shift);
 	return scalar @$elems;
 }
 
-# util: url for an element-specific endpoint
-sub elemurl {
-	my $json = elem shift;
-	return sprintf '/element/%s/%s',
-	    $json->{$ELEMENT}, shift
-	    if is_elem $json;
-	croak sprintf "Not an element: %s", ppjson $json;
+=item $sg->elem_request($method, $locator, $action, $body)
+
+Perform I<$action> on the element identified by I<$locator>. The
+I<$body> is used if the HTTP I<$method> needs it, like C<POST>.
+WebDriver element action URLs are like
+C</session/$sessionID/element/$elemID/$action>.
+
+=cut
+
+sub elem_request {
+	my $self = shift;
+	my $method = shift;
+	my $json = $self->elem(shift);
+	my $action = shift;
+	croak sprintf "Not an element: %s", $self->ppjson($json)
+	    unless is_elem $json;
+	my $url = sprintf 'element/%s/%s', $json->{$ELEMENT}, $action;
+	return $self->request($method, $url, @_);
 }
 
-=item sub_elem I<ANCESTOR>, I<DESCENDENT>
+=item $sg->sub_elem($ancestor, $descendent)
 
-Locate a I<DESCENDENT> element relative to an I<ANCESTOR>.
-(Often the I<ANCESTOR> will have previously been located by another subroutine,
+Locate a I<$descendent> element relative to an I<$ancestor>.
+(Often the I<$ancestor> will have previously been located by another subroutine,
 but this is not required.)
 
 =cut
 
 sub sub_elem {
-	my $url = elemurl shift, 'element';
-	return POST $url, using @_;
+	return shift->elem_request(POST => shift, 'element', using shift);
 }
 
-=item sub_elems I<ANCESTOR>, I<DESCENDENT>
+=item $sg->sub_elems($ancestor, $descendent)
 
-Locate I<DESCENDENT> elements relative to an I<ANCESTOR>.
+Locate I<$descendent> elements relative to an I<$ancestor>.
 Returns a reference to an array of located elements.
 
 =cut
 
 sub sub_elems {
-	my $url = elemurl shift, 'elements';
-	return POST $url, using @_;
+	return shift->elem_request(POST => shift, 'elements', using shift);
 }
 
-=item click I<LOCATOR>
+=item $sg->click($locator)
 
 Click on an element. Returns null.
 
 =cut
 
 sub click {
-	my $url = elemurl shift, 'click';
-	return POST $url, {};
+	return shift->elem_request(POST => shift, 'click', {})
 }
 
-=item elem_attr I<LOCATOR>, I<ATTRIBUTE>
+=item $sg->elem_attr($locator, $attribute)
 
-Returns the I<ATTRIBUTE> of the element.
+Returns the I<$attribute> of the element.
 
 =cut
 
 sub elem_attr {
-	return GET elemurl shift, 'attribute/'.shift;
+	return shift->elem_request(GET => shift, 'attribute/'.shift);
 }
 
-=item elem_prop I<LOCATOR>, I<PROPERTY>
+=item $sg->elem_prop($locator, $property)
 
-Returns the I<PROPERTY> of the element.
+Returns the I<$property> of the element.
 
 =cut
 
 sub elem_prop {
-	return GET elemurl shift, 'property/'.shift;
+	return shift->elem_request(GET => shift, 'property/'.shift);
 }
 
-=item elem_tag I<LOCATOR>
+=item $sg->elem_tag($locator)
 
 Returns the tag name of the element.
 
 =cut
 
 sub elem_tag {
-	return GET elemurl shift, 'name';
+	return shift->elem_request(GET => shift, 'name');
 }
 
-=item elem_text I<LOCATOR>
+=item $sg->elem_text($locator)
 
 Returns the rendered text in the element as a string.
 
 =cut
 
 sub elem_text {
-	return GET elemurl shift, 'text';
+	return shift->elem_request(GET => shift, 'text');
 }
 
-=item elem_selected I<LOCATOR>
+=item $sg->elem_selected($locator)
 
-Returns a boolean corresponding to whether the form element is selected.
+Returns a boolean corresponding to whether a form element is selected.
 
 =cut
 
 sub elem_selected {
-	return GET elemurl shift, 'selected';
+	return shift->elem_request(GET => shift, 'selected');
 }
 
-=item clear I<LOCATOR>
+=item $sg->clear($locator)
 
-Clear an element. Returns null.
+Clear a form element. Returns null.
 
 =cut
 
 sub clear {
-	my $url = elemurl shift, 'clear';
-	return POST $url, {}
+	return shift->elem_request(POST => shift, 'clear', {});
 }
 
-=item fill I<ELEM> => I<VALUE>, I<ELEM> => I<VALUE> ...
+=item $sg->fill($elem1 => $value1, $elem2 => $value2 ...)
 
 Fill in a form. The arguments are a list of pairs, consisting of an element
 locator for a form element and the value to insert into it. Each element is
@@ -454,34 +457,37 @@ cleared before the value is inserted. Returns null.
 =cut
 
 sub fill {
+	my $self = shift;
 	while (@_) {
-		my $elem = elem shift;
-		my $tag = elem_tag $elem;
-		my $type = elem_attr $elem, 'type';
+		my $elem = $self->elem(shift);
+		my $tag = $self->elem_tag($elem);
+		my $type = $self->elem_attr($elem, 'type');
 		my $texty = defined $type
 		    && grep { $type eq $_ }
 		    qw(email number password search tel text url);
-		clear $elem if $tag eq 'textarea' or $texty;
-		POST elemurl($elem, 'value'), { text => shift };
+		$self->clear($elem) if $tag eq 'textarea' or $texty;
+		$self->elem_request(POST => $elem, 'value', { text => shift });
 	}
 }
 
-=item wait_for I<SUB>
+=item $sg->wait_for(sub { ... })
 
-Wait for some condition to succeed. The I<SUB> is a reference to a subroutine
-returning a boolean value, which is typically the result of C<has_elem>
-test(s). The checks are run every 0.1 seconds until they succeed; if they do
-not do so within 10 seconds then the C<wait_for> croaks.
+Wait for some condition to succeed. The subroutine must return a
+boolean value, which is typically the result of C<$sg-E<gt>has_elem>
+test(s). The subroutine is run every 0.1 seconds until it returns
+true; if it does not do so within 10 seconds then C<$sg-E<gt>wait_for>
+croaks.
 
 =cut
 
 sub wait_for {
+	my $self = shift;
 	my $test = shift;
 	for (1..100) {
 		return if $test->();
 		select undef, undef, undef, 0.1;
 	}
-	$verbose = 1;
+	$self->verbosity(LOG_INFO);
 	$test->();
 	croak "timed out waiting for test to succeed";
 }
