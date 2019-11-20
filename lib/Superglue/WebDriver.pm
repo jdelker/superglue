@@ -19,6 +19,7 @@ use warnings;
 use strict;
 
 use Carp;
+use POSIX qw(_exit);
 use Sys::Syslog qw(:macros);
 
 # Utility subtroutines that are not exported as methods.
@@ -49,7 +50,7 @@ sub is_elem {
 use Moo::Role;
 
 requires qw(
-	DEL
+	DELETE
 	GET
 	POST
 	verbose
@@ -104,7 +105,7 @@ before DEMOLISH => sub {
 	return unless $self->{webdriver};
 	return if $self->retain;
 	# delete WebDriver session
-	$self->DEL('');
+	$self->DELETE('');
 	# clean up subprocess
 	kill INT => $self->driver_pid if $self->driver_pid;
 };
@@ -174,7 +175,7 @@ after BUILD => sub {
 			} else {
 				push @cmd, '--log' => 'trace'
 			}
-			exec @cmd or die "exec @cmd: $!\n";
+			exec @cmd or _exit 1;
 		}
 	}
 	unless ($self->session) {
@@ -195,6 +196,8 @@ after BUILD => sub {
 		$self->error_f("could not establish WebDriver session to %s",
 			       $self->base_uri)
 		    unless defined $self->session;
+		$self->notice_f("session ID %s", $self->session)
+		    if $self->retain;
 	}
 	$self->base_uri(sprintf "http://%s:%s/session/%s/",
 			$self->host, $self->port, $self->session);
