@@ -116,7 +116,7 @@ use warnings;
 use Carp;
 use YAML;
 
-our @EXPORT_SUPERGLUE = qw(
+our @SUPERGLUE_EXPORT = qw(
 	whois
 );
 
