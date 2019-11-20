@@ -117,8 +117,7 @@ sub request {
 	return croak_http $r,
 	    $self->json_error
 	    ? $self->json_error->($json)
-	    : ("request failed" => to_json $json,
-		{ allow_nonref => 1, canonical => 1, pretty => 1 });
+	    : ("request failed" => $self->ppjson($json));
 }
 
 =item $json = $sg->GET($uri)
@@ -245,6 +244,19 @@ has json_error => (
 =back
 
 =head1 MISCELLANEA
+
+=head2 Pretty-printed JSON
+
+=item $sg->ppjson($json)
+
+Returns a pretty-printed JSON string.
+
+=cut
+
+sub ppjson {
+	return to_json $_[-1],
+	    { allow_nonref => 1, canonical => 1, pretty => 1 };
+}
 
 =head2 Relative URIs
 
