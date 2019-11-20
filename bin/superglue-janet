@@ -1,91 +1,41 @@
 #!/usr/bin/perl
 
-use warnings;
-use strict;
+=head1 NAME
 
-use LWP::UserAgent;
-use JSON;
-use File::Slurp;
-use POSIX;
+superglue-janet - update ac.uk domain registrations
+
+=head1 SYNOPSIS
+
+superglue-janet [options]
+
+See L<superglue(1)> for the common superglue options.
+
+=cut
+
+use strictures 2;
+use warnings;
 
 use FindBin;
-use lib "$FindBin::Bin/../lib/superglue/perl5";
+use Net::DNS;
+use POSIX qw(strftime);
 
-use Deep;
-use WebDriver;
+use lib "$FindBin::Bin/../lib";
 
-my $notreally = 1;
+use Superglue qw( :script :restful :webdriver );
 
-my @wd_opts = (
-	reconnect => 1,
-	retain => 1,
-	foreground => 1,
-	verbose => 1,
-    );
-
-if (@ARGV == 2) {
-	push @wd_opts, session => shift;
-}
-
-webdriver_init @wd_opts;
-
-die "usage: $0 [session] <credfile>\n"
-    unless @ARGV == 1;
-
-my $credfile = shift;
-my $creds = read_file $credfile;
-$creds =~ m{^([^:]+):(.*)\n*$}
-    or die "could not parse username:password from $credfile\n";
-$creds = { username => $1, password => $2 };
-
-my $domain = 'ucam.ac.uk';
-
-my $registrant = {
-	Name => 'Cambridge University Hostmaster',
-	Tel => '+44 1223 748440',
-	Email => 'hostmaster@cam.ac.uk',
-	Fax => '',
-	Add1 => 'Cambridge University Information Services',
-	Add2 => 'Roger Needham Building',
-	Add3 => '7 JJ Thomson Avenue',
-	Town => 'Cambridge',
-	County => '',
-	Postcode => 'CB3 0RB'
-    };
-
-my $new = {
-	NS => [
-		# { 'authdns0.csx.cam.ac.uk' => '' },
-		# { 'authdns1.csx.cam.ac.uk' => '' },
-		# { 'sns-pb.isc.org' => '' },
-		{ 'auth0.dns.cam.ac.uk' => '' },
-		{ 'auth1.dns.cam.ac.uk' => '' },
-		{ 'sns-pb.isc.org' => '' },
-#		{ 'ns1.mythic-beasts.com' => '' },
-#		{ 'ns2.mythic-beasts.com' => '' },
-#		{ 'ns3.mythic-beasts.com' => '' },
-	    ],
-	DS => [
-		'47650 8 2 17EFBE87DEC9AC62D88291F4DB0AF13D84B94B73A11293892414541112FC52B4',
-		'47961 13 2 5B00A0A0F520F98B4670D156D759B6BB23E1C4A1C41C0ABF94712B79795DDEFF',
-	    ],
-};
-
-########################################################################
-
+# trim table header and footer
 sub trim {
-	# trim table header and footer
 	my $rows = shift;
 	return [ splice @$rows, 1, -1 ];
 }
 
-navigate 'https://domainregistry.jisc.ac.uk/dns';
+navigate login 'url';
 
 my $login = '#MainContent_Login1_LoginButton';
 if (has_elem $login) {
 	fill
-	    '#MainContent_Login1_UserName' => $creds->{username},
-	    '#MainContent_Login1_Password' => $creds->{password};
+	    '#MainContent_Login1_UserName' => login('username'),
+	    '#MainContent_Login1_Password' => login('password');
 	click $login;
 }
 
@@ -107,24 +57,26 @@ fill '#MainContent_TicketTypeChoice' => 'Modification';
 click '#MainContent_FilterSubmit';
 
 my $tickets = trim elems '#MainContent_TicketListView tr';
-die "cannot modify $domain: too many open tickets\n"
+error_f "cannot modify %s: too many open tickets", zone
     if @$tickets >= 10;
+
+verbose_f "found %d open tickets", scalar @$tickets;
 
 # Look for any open tickets for this domain
 # to avoid having multiple modifications in flight.
 
 fill '#MainContent_TicketTypeChoice' => '',
-    '#MainContent_DomainFilterInput' => $domain;
+    '#MainContent_DomainFilterInput' => zone;
 click '#MainContent_FilterSubmit';
 
-die "cannot modify $domain: ticket open\n"
+error_f "cannot modify %s: ticket already open", zone
     if has_elem '#MainContent_TicketListView_CurrentPageLabel';
 
 # Find the domain's details page.
 
 click '#commonActionsMenuLogin_ListDomains';
 
-fill '#MainContent_tbDomainNames' => $domain,
+fill '#MainContent_tbDomainNames' => zone,
     '#MainContent_ShowReverseDelegatedDomains' => 'selected';
 
 click '#MainContent_btnFilter';
@@ -135,79 +87,70 @@ click '#MainContent_btnFilter';
 
 my $domains = trim elems '#MainContent_DomainListView tr';
 for my $row (@$domains) {
-	next unless $domain
-	    eq lc elem_text sub_elem $row, 'td:nth-child(4)';
+	next unless zone eq lc elem_text sub_elem $row, 'td:nth-child(4)';
 	click sub_elem $row, 'td:nth-child(2) > a'
 }
 
-die "cannot modify $domain: not found\n"
+error_f "cannot modify %s: not found", zone
     unless has_elem '#MainContent_DomainName'
-    and $domain eq lc elem_text '#MainContent_DomainName';
+    and zone eq lc elem_text '#MainContent_DomainName';
 
 # Check the registrant details match.
 
-# We apply a fuxup here, because the element IDs on this page have a
-# slightly different naming scheme from the elements on the domain
-# modification form. We use the modification form as the canonical
-# version of the names (kk = canonical key), and the fuxup converts
-# them to the version on this page (fk).
-
-my $fuxup = { 'Add1' => 'Add',
-	      'Add2' => 'Add1',
-	      'Add3' => 'Add2',
-	      'Tel' => 'Phone',
-	      'Postcode' => 'PostCode' };
-
 my $reg_match = 1;
 
-for my $kk (keys %$registrant) {
-	my $id = '#MainContent_registrantSectionView_registrant_Reg';
-	my $fk = $fuxup->{$kk} // $kk;
-	my $t = elem_text $id.$fk;
-	next if $t eq $registrant->{$kk};
-	printf "Modify %s %s -> %s\n",
-	    $kk, $t, $registrant->{$kk};
-	$reg_match = 0;
+if (has_contact) {
+
+	my $org = elem_text '#MainContent_OwnerOrg';
+	if ($org ne whois 'org') {
+		warning_f 'mismatched owner: %s -> %s', $org, whois 'org';
+		warning_f 'you must write a letter to JISC to fix this';
+	}
+
+	# We apply a fuxup here, because the element IDs on this page
+	# have an naming scheme that is incompatible with the names
+	# supported by Superglue::Contact. We use the modification
+	# form as the canonical version of the names (kk = canonical
+	# key), and the fuxup converts them to the version on this
+	# page (fk).
+
+	my $fuxup = { 'Add1' => 'Add',
+		      'Add2' => 'Add1',
+		      'Add3' => 'Add2' };
+
+	for my $kk (qw(
+		Name Phone Email Fax Add1 Add2 Add3 Town County PostCode
+	)) {
+		my $id = '#MainContent_registrantSectionView_registrant_Reg';
+		my $fk = $fuxup->{$kk} // $kk;
+		my $t = elem_text $id.$fk;
+		next if $t eq whois $kk;
+		notice_f "Modify %s %s -> %s",
+		    $kk, $t, whois $kk;
+		$reg_match = 0;
+	}
+
 }
 
-my $old;
-
-my $oldns = elems '#MainContent_nameServersTab tr';
-shift @$oldns; # remove header (no footer on this table)
-for my $row (@$oldns) {
+my $old_ns = elems '#MainContent_nameServersTab tr';
+shift @$old_ns; # remove header (no footer on this table)
+for my $row (@$old_ns) {
 	my $ns = elem_text sub_elem $row, 'td:nth-last-child(2)';
 	my $ip = elem_text sub_elem $row, 'td:nth-last-child(1)';
-	push @{ $old->{NS} }, { $ns => $ip };
-}
-
-my $ns_match = deepeq $old->{NS}, $new->{NS};
-unless ($ns_match) {
-	print "delegations differ\n";
-	print "old delegation\n";
-	printf "\t%s %s\n", keys %$_, values %$_ for @{ $old->{NS} };
-	print "new delegation\n";
-	printf "\t%s %s\n", keys %$_, values %$_ for @{ $new->{NS} };
-}
-
-my $new_ds = '';
-for my $ds (@{ $new->{DS} }) {
-	$new_ds .= "$domain. IN DS $ds\n";
+	old_ns $ns, $ip;
 }
 
 my $old_ds = elem_text '#MainContent_DsKeysDisplay';
-$old_ds =~ s{\s*$}{\n};
-my $ds_match = $old_ds eq $new_ds;
-# ignore DS records in reverse DNS zones, because they are unsigned
-$ds_match ||= $domain =~ m{\.arpa$};
-unless ($ds_match) {
-	print "DS records differ\n";
-	print "old records\n";
-	print $old_ds;
-	print "new records\n";
-	print $new_ds;
+for my $old_ds (split /\n/, $old_ds) {
+	my $rr = Net::DNS::RR->new($old_ds);
+	error "not a DS record: $old_ds"
+	    if $rr->type ne 'DS';
+	old_ds $rr;
 }
 
-exit if $reg_match and $ns_match and $ds_match;
+my $deleg_match = delegation_matches;
+
+exit if $deleg_match and $reg_match;
 
 click '#MainContent_ModifyDomainButton';
 
@@ -217,14 +160,19 @@ click '#MainContent_ModifyDomainButton';
 # disable dual hidden / public whois
 click '#MainContent_Registrant_useSharedRegistrantDetailsRadioButton';
 
-for my $k (keys %$registrant) {
-	my $id = '#MainContent_Registrant_registrant_Reg';
-	fill $id.$k => $registrant->{$k};
+if (has_contact) {
+	for my $k (qw(
+		Name Add1 Add2 Add3 Town County Postcode Email Tel Fax
+	)) {
+		my $id = '#MainContent_Registrant_registrant_Reg';
+		fill $id.$k => whois $k;
+	}
 }
 
 # ensure there are enough name server form elements
 
-my $num_ns = scalar @{ $new->{NS} };
+my @new_ns = new_ns;
+my $num_ns = @new_ns / 2;
 fill '#MainContent_Nameservers_NumberOfNonJanetSecondaries'
     => ''.($num_ns - 1);
 wait_for sub {
@@ -246,18 +194,18 @@ for my $i (0..3) {
 # now we can fill the nameserver fields
 
 fill '#MainContent_Nameservers_PrimeNameserverName'
-    => keys %{ $new->{NS}->[0] },
+    => shift @new_ns,
     '#MainContent_Nameservers_PrimeNameserverIp'
-    => values %{ $new->{NS}->[0] };
+    => shift @new_ns;
 for my $i (0 .. $num_ns - 2) {
 	fill '#MainContent_Nameservers_SecName'.$i
-	    => keys %{ $new->{NS}->[$i+1] },
+	    => shift @new_ns,
 	    '#MainContent_Nameservers_SecIp'.$i
-	    => values %{ $new->{NS}->[$i+1] };
+	    => shift @new_ns;
 }
 
 fill '#MainContent_DsKeys_DsKeyTabContainer_DsPasteTab_DsKeyText',
-    => $new_ds;
+    => join '', map "$_\n", map $_->plain, new_ds;
 
 my $modwhen_id = '#MainContent_ModificationDate_Modification';
 
@@ -286,22 +234,21 @@ for my $opt (@$times) {
 	last;
 }
 
-printf "modification scheduled for %s %s\n",
+notice_f "modification scheduled for %s %s",
     elem_prop($modwhen_id.'DateCalendar', 'value'),
     elem_text($modwhen_id.'Time option:checked');
 
-if ($notreally) {
-	print "not really!\n";
+if (not_really) {
+	notice "not really!";
 } else {
 	click '#MainContent_ConfirmRequest';
 	if (has_elem '#MainContent_SubmissionText') {
-		printf "%s\n", elem_text '#MainContent_SubmissionText';
-		click '#commonActionsMenuLogin_menuLogout';
-		exit;
-    } else {
-	    printf "%s\n", elem_text 'body';
-	    die "Unexpected response after submbitting modification for $domain\n";
-    }
+		notice elem_text '#MainContent_SubmissionText';
+	} else {
+		notice elem_text 'body';
+		error "Unexpected response after submbitting modification";
+	}
 }
 
+click '#commonActionsMenuLogin_menuLogout';
 exit;
