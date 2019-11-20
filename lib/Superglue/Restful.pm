@@ -52,7 +52,7 @@ use Moo::Role;
 our @SUPERGLUE_GETOPT = ();
 
 our @SUPERGLUE_EXPORT = qw(
-	DELETE
+	DEL
 	GET
 	PATCH
 	POST
@@ -121,8 +121,6 @@ sub request {
 		{ allow_nonref => 1, canonical => 1, pretty => 1 });
 }
 
-=item $json = $sg->DELETE($uri)
-
 =item $json = $sg->GET($uri)
 
 =item $json = $sg->PATCH($uri, $body)
@@ -134,10 +132,6 @@ sub request {
 Abbreviated versions of C<$sg-E<gt>request()>
 
 =cut
-
-sub DELETE {
-	return shift->request(DELETE => @_);
-}
 
 sub GET {
 	return shift->request(GET => @_);
@@ -153,6 +147,21 @@ sub POST {
 
 sub PUT {
 	return shift->request(PUT => @_);
+}
+
+=item $json = $sg->DEL($uri)
+
+Abbreviated version of C<$sg-E<gt>request(DELETE => $uri)>
+
+Unfortunately the DELETE HTTP method name collides with Perl's
+destructor method name, so we have to change it.
+
+=cut
+
+# only fools and horses work
+sub DEL {
+	my $self = shift;
+	return shift->request(DELETE => @_);
 }
 
 =item $sg->post_form($url, %fields)
