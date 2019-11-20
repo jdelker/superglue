@@ -341,14 +341,13 @@ has old_delegation => (
 
 The C<$filename> is a YAML file containing login credentials with
 encrypted secrets. See L<ReGPG::Login> for details of the file format.
-The C<login> accessor method returns the loaded login file.
 
 =cut
 
 has login => (
 	is => 'ro',
-	predicate => 1,
 	required => 1,
+	reader => 'regpg_login',
 	handles => {
 		'login_check' => 'check',
 		'auth_basic' => 'auth_basic',
@@ -556,7 +555,18 @@ sub delegation_matches {
 
 =item $sg->login
 
-The L<ReGPG::Login> credentials.
+=item $sg->login($key)
+
+Access the login credentials. Without arguments it returns the
+L<ReGPG::Login> object. With an argument it is equivalent to
+C<$sg-E<gt>login-E<gt>{$key}>.
+
+=cut
+
+sub login {
+	my $login = shift->regpg_login;
+	return @_ ? @$login{@_} : $login;
+}
 
 =item $sg->login_check(@fields)
 

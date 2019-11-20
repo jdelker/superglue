@@ -188,7 +188,7 @@ for (my $attempt = 1; ; $attempt++) {
 		exit;
 	}
 
-	my $password = uri_escape login()->{password};
+	my $password = uri_escape login 'password';
 
 	http_error $ignore_timeout;
 
