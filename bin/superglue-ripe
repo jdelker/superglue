@@ -206,12 +206,6 @@ for (my $attempt = 1; ; $attempt++) {
 	}
 }
 
-=head1 AUTHOR
-
-Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
-at Cambridge University Information Services.
-L<https://opensource.org/licenses/0BSD>
-
 =head1 SEE ALSO
 
 L<superglue(1)>, L<Superglue(3pm)>, L<Superglue::Restful(3pm)>
@@ -221,3 +215,9 @@ L<https://www.ripe.net/support/documentation/ripe-database-documentation>
 
 RIPE database REST API,
 L<https://github.com/RIPE-NCC/whois/wiki/WHOIS-REST-API>
+
+=head1 AUTHOR
+
+Written by Tony Finch <fanf2@cam.ac.uk> <dot@dotat.at>
+at Cambridge University Information Services.
+L<https://opensource.org/licenses/0BSD>
