@@ -126,15 +126,39 @@ for (;;) {
 			}
 		}
 	}
-
-	# update contacts
-	if (not_really) {
+	if ($reg_match) {
+		verbose "contacts match";
+	} elsif (not_really) {
 		notice "not really!";
 	} elsif ($unlocked) {
 		click "form input[type='submit'][value='Update']";
 	}
 
-	# NS
+	navigate "$home/nameservers";
+	my @new_ns = new_ns;
+	for (my $i = 0; @new_ns; $i++) {
+		my $elem_ns = elem "form input[name='ns$i']";
+		my $elem_ip = elem "form input[name='ip$i']";
+		my $new_ns = shift @new_ns;
+		my $new_ip = shift @new_ns;
+		my $old_ns = elem_attr $elem_ns, 'value';
+		my $old_ip = elem_attr $elem_ip, 'value';
+		next if $old_ns eq $new_ns
+		    and $old_ip eq $new_ip;
+		$ns_match = 0;
+		notice "$old_ns $old_ip -> $new_ns $new_ip"
+		    if not_really or $unlocked;
+		fill $elem_ns => $new_ns, $elem_ip => $new_ip;
+	}
+	if ($ns_match) {
+		verbose "nameservers match";
+	} elsif (not_really) {
+		notice "not really!";
+	} elsif ($unlocked) {
+		click "form input[type='submit'][value='Set nameservers']";
+	}
+
+	navigate "$home/dnssec";
 	# DS
 
 	exit if not_really;
