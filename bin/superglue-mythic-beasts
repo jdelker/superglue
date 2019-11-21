@@ -67,35 +67,7 @@ for (;;) {
 		$unlocked = $lock_state eq 'unlocked';
 	}
 
-	if (zone =~ m{\.uk$}) {
-		navigate "$home/contacts";
-		for my $field (qw(
-			org name street0 street1 street2
-			city sp pc cc voice email
-		)) {
-			my $old;
-			my $new = whois $field;
-			my $elem = "#registrant_$field";
-			if ($field eq 'cc') {
-				$old = elem_attr
-				    "$elem option[selected]", 'value';
-			} else {
-				# no need to find the element twice
-				$elem = elem $elem;
-				$old = elem_attr $elem, 'value';
-			}
-			next if $old eq $new;
-			$reg_match = 0;
-			notice "$field $old -> $new";
-			if ($field eq 'org') {
-				warning_f "this must be fixed via Nominet";
-			} elsif ($field eq 'cc') {
-				click "$elem option[value='$new']";
-			} else {
-				fill $elem => $new;
-			}
-		}
-	} else {
+	if (has_elem { 'partial link text' => 'Domain privacy' }) {
 		my $priv_state = elem_text { 'xpath' =>
 			'//h2[text()="Contacts"]/..'.
 			'/p[contains(text(),"Domain privacy is")]/b'
@@ -114,33 +86,43 @@ for (;;) {
 				    "[name='$priv_want-privacy']";
 			}
 		}
+	}
 
-		navigate "$home/contacts";
-		for my $contact (qw(owner admin billing tech)) {
-			for my $field (qw(
-				first last org phone fax email
-				add1 add2 add3 city county postcode country
-			)) {
-				my $old;
-				my $new = whois $field;
-				my $elem = "#${contact}_${field}";
-				if ($field eq 'country') {
-					$old = elem_attr
-					    "$elem option[selected]", 'value';
-				} else {
-					# no need to find the element twice
-					$elem = elem $elem;
-					$old = elem_attr $elem, 'value';
-				}
-				next if $old eq $new;
-				$reg_match = 0;
-				notice "$field $old -> $new"
-				    if not_really or $unlocked;
-				if ($field eq 'country') {
-					click "$elem option[value='$new']";
-				} else {
-					fill $elem => $new;
-				}
+	navigate "$home/contacts";
+
+	my $uk = zone =~ m{\.uk$};
+	my @contact = $uk ? qw(registrant) : qw(owner admin billing tech);
+	my @field = $uk ? qw(
+		org name street0 street1 street2
+		city sp pc cc voice email
+	) : qw(
+		first last org phone fax email
+		add1 add2 add3 city county postcode country
+	);
+
+	for my $contact (@contact) {
+		for my $field (@field) {
+			my $old;
+			my $new = whois $field;
+			my $elem = "#${contact}_${field}";
+			if ($field eq 'country' or $field eq 'cc') {
+				$old = elem_attr
+				    "$elem option[selected]", 'value';
+			} else {
+				# no need to find the element twice
+				$elem = elem $elem;
+				$old = elem_attr $elem, 'value';
+			}
+			next if $old eq $new;
+			$reg_match = 0;
+			notice "$field $old -> $new"
+			    if not_really or $unlocked;
+			if ($uk and $field eq 'org') {
+				warning_f "this must be fixed via Nominet";
+			} elsif ($field eq 'country'or $field eq 'cc') {
+				click "$elem option[value='$new']";
+			} else {
+				fill $elem => $new;
 			}
 		}
 	}
