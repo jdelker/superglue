@@ -14,6 +14,7 @@ delegation records should be.
 use strictures 2;
 use warnings;
 
+use Carp;
 use IPC::System::Simple qw(capturex);
 use Net::DNS;
 use Net::DNS::ZoneFile;
@@ -24,8 +25,12 @@ sub add_ds {
 	my $self = shift;
 	my $zone = $self->{zone};
 	for my $ds (@_) {
-		$ds = Net::DNS::RR->new("$zone DS $ds")
-		    unless ref $ds;
+		if (ref $ds) {
+			croak "not a DS record: $ds\n"
+			    unless $ds->type eq 'DS';
+		} else {
+			$ds = Net::DNS::RR->new("$zone DS $ds");
+		}
 		$self->{ds}->{$ds->rdstring} = ();
 	}
 }
