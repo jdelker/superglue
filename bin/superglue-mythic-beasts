@@ -4,6 +4,8 @@ use strictures 2;
 use warnings;
 
 use FindBin;
+use Net::DNS;
+
 use lib "$FindBin::Bin/../lib";
 
 use Superglue qw( :script :webdriver );
@@ -21,6 +23,7 @@ if (has_elem $login) {
 	click $login;
 }
 
+my $uk = zone =~ m{\.uk$};
 my $home = 'https://ctrlpanel.mythic-beasts.com/customer/domains/'.zone;
 sub go_home {
 	navigate $home;
@@ -37,72 +40,50 @@ my $status = elem_text 'div.section.top-section :nth-child(3)';
 error "domain is not currently registered"
     unless $status =~ m{status\s+registered}i;
 
-sub wait_for_alert_updated {
-	wait_for_elem 'p.alert';
-	unless (elem_text('p.alert-success') =~ m{updated}) {
-		error elem_text 'p.alert';
-	}
-}
 
 # Although the domain summary page has most of the information we
 # need, the fields are not labelled in a convenient way. For contact
-# and delegation details it is easier to go straight to filling in the
-# forms, and we can report any discrepancies as we find them.
+# and delegation details it is easier to examine the forms.
 #
-# The main problem with this is the registry lock for non-UK domains:
-# we don't want to disable it if we don't need to. So for locked
-# domains that need changes we go through the process twice: first to
-# find out that changes are required, then after unlocking the domain,
-# again to actually make the changes. The first stage can be skipped
-# if the domain is already unlocked, and the second can be skipped if
-# no changes are needed.
+# It would be nice if we could fill the forms in as we go. The main
+# problem with this is the registry lock for non-UK domains: we don't
+# want to disable it if we don't need to. So for locked domains that
+# need changes we have to go through the forms: first to find out that
+# changes are required, then after unlocking the domain, again to
+# actually make the changes.
+#
+# In principle the examination and filling stages could be combined if
+# the domain is already unlocked, but we don't bother with that
+# optimization. The second stage is skipped if no changes are needed.
 
-my $unlocked = 1;
-my $lock_match = 1;
-my $priv_match = 1;
-my $reg_match = 1;
-my $ns_match = 1;
-my $ds_match = 1;
+sub fettle_flag {
+	my ($description, $link, $heading, $blurb, $want) = @_;
+	error "missing $description link"
+	    unless has_elem { 'partial link text' => $link };
+	my $match = $want eq elem_text { xpath =>
+	    "//h2[text()='$heading']/../p[contains(text(),'$blurb')]/b"
+	};
+	verbose_f "%s %s", $description, $match ? "matches" : "differs";
+	return $match;
+}
+my $locking_match = 1;
+my $privacy_match = 1;
+unless ($uk) {
+	$locking_match = fettle_flag 'registration lock',
+	    'Domain locking', 'Transfer away', 'Domain is',
+	    whois('lock') || 1 ? "locked" : "unlocked"; # default on
+	$privacy_match = fettle_flag 'domain privacy',
+	    'Domain Privacy', 'Contacts', 'Domain privacy is',
+	    whois('privacy') ? 'enabled' : 'disabled'; # default off
+}
 
-my $uk = zone =~ m{\.uk$};
 
-for (;;) {
-	if (has_elem { 'partial link text' => 'Domain locking' }) {
-		my $lock_state = elem_text { 'xpath' =>
-			'//h2[text()="Transfer away"]/..'.
-			'/p[contains(text(),"Domain is")]/b'
-		};
-		$unlocked = $lock_state eq 'unlocked';
-		verbose_f "registration is %s", $unlocked ? "unlocked" : "locked";
-	}
+# compare form contents and fill in correct values, but don't submit it
+sub fettle_contacts {
+	my $noisy = shift eq 'noisy';
+	my $match = 1;
 
-	if (not $uk) {
-		error "missing domain privacy link"
-		    unless has_elem { 'partial link text' => 'Domain Privacy' };
-		my $priv_state = elem_text { 'xpath' =>
-			'//h2[text()="Contacts"]/..'.
-			'/p[contains(text(),"Domain privacy is")]/b'
-		};
-		my $priv_want = whois('privacy') ? 'enable' : 'disabled';
-		my $priv_other = whois('privacy') ? 'disabled' : 'enable';
-		$priv_match = $priv_state eq $priv_want;
-		if ($priv_match) {
-			verbose_f "whois privacy is %s", $priv_state
-			    if not_really or $unlocked;
-		} elsif (not_really or $unlocked) {
-			notice "whois privacy $priv_state -> $priv_want";
-			if (not_really) {
-				notice "not really!";
-			} else {
-				navigate "$home/privacy";
-				$priv_want =~ s/d$//;
-				click "form input[type='submit']".
-				    "[name='$priv_want-privacy']";
-				wait_for_elem "form input[type='submit']".
-				    "[name='$priv_other-privacy']";
-			}
-		}
-	}
+	return $match if not has_contact;
 
 	navigate "$home/contacts";
 
@@ -121,92 +102,160 @@ for (;;) {
 			my $new = whois $field;
 			my $elem = "#${contact}_${field}";
 			if ($field eq 'country' or $field eq 'cc') {
-				$old = elem_attr
-				    "$elem option[selected]", 'value';
+				$old = elem_value "$elem option[selected]";
 			} else {
 				# no need to find the element twice
 				$elem = elem $elem;
-				$old = elem_attr $elem, 'value';
+				$old = elem_value $elem;
 			}
 			next if $old eq $new;
-			$reg_match = 0;
-			notice "$contact $field $old -> $new"
-			    if not_really or $unlocked;
+			$match = 0;
+			notice "$contact $field $old -> $new" if $noisy;
 			if ($uk and $field eq 'org') {
 				warning_f "this must be fixed via Nominet";
-			} elsif ($field eq 'country'or $field eq 'cc') {
+			} elsif ($field eq 'country' or $field eq 'cc') {
 				click "$elem option[value='$new']";
 			} else {
 				fill $elem => $new;
 			}
 		}
 	}
-	if ($reg_match) {
-		verbose "contacts match"
-		    if not_really or $unlocked;
-	} elsif (not_really) {
+	return $match;
+}
+my $contacts_match = fettle_contacts 'quiet';
+verbose_f "contacts %s", $contacts_match ? "match" : "differ";
+
+
+navigate "$home/nameservers";
+for (my $i = 0; ; $i++) {
+	my $ns = elem_value "form input[name='ns$i']";
+	my $ip = elem_value "form input[name='ip$i']";
+	last if not $ns;
+	old_ns $ns, $ip;
+}
+
+
+navigate "$home/dnssec";
+my $ds_rows = elems { 'xpath' =>
+	'//h2[text()="DS Records"]/..'.
+	'/table/tbody/tr'
+};
+for my $tr (@$ds_rows) {
+	my $tag = elem_value sub_elem $tr, "input[name='keytag']";
+	my $algo = elem_value sub_elem $tr,
+	    "select[name='algorithm'] option[selected]";
+	my $dt = elem_value sub_elem $tr,
+	    "select[name='digesttype'] option[selected]";
+	my $hash = elem_value sub_elem $tr, "input[name='digest']";
+	old_ds Net::DNS::RR->new(
+		name => zone,
+		type => 'DS',
+		keytag => $tag,
+		algorithm => $algo,
+		digtype => $dt,
+		digest => $hash,
+	    );
+}
+
+my $ns_match;
+my $ds_match;
+$ns_match = $ds_match = delegation_matches;
+
+
+exit if $locking_match
+    and $privacy_match
+    and $contacts_match
+    and $ns_match
+    and $ds_match;
+
+
+my $lock_button = "form input[type='submit'][value='lock']";
+my $unlock_button = "form input[type='submit'][value='unlock']";
+unless ($uk) {
+	navigate "$home/auth-lock";
+	my $elems = elems $unlock_button;
+	notice "unlocking registration" if @$elems;
+	if (not_really) {
 		notice "not really!";
-	} elsif ($unlocked) {
+	} else {
+		click $elems->[0] if @$elems;
+		wait_for_elem $lock_button;
+	}
+}
+
+sub privacy_button {
+	my $set = shift;
+	return "form input[type='submit'][name='$set-privacy']";
+}
+if (not $uk and not $privacy_match) {
+	navigate "$home/privacy";
+	my $want = whois 'privacy';
+	my $old = $want ? 'disable' : 'enable';
+	my $new = $want ? 'enable' : 'disable';
+	notice "whois privacy $old -> $new";
+	if (not_really) {
+		# check for expected button
+		elem privacy_button $new;
+		notice "not really!";
+	} else {
+		click privacy_button $new;
+		wait_for_elem privacy_botton $old;
+	}
+}
+
+sub wait_for_alert_updated {
+	wait_for_elem 'p.alert';
+	unless (elem_text('p.alert-success') =~ m{updated}) {
+		error elem_text 'p.alert';
+	}
+}
+
+unless ($contacts_match) {
+	fettle_contacts 'noisy';
+	if (not_really) {
+		notice "not really!";
+	} else {
 		click "form input[type='submit'][value='Update']";
 		wait_for_alert_updated;
 	}
+}
 
+
+unless ($ns_match) {
 	navigate "$home/nameservers";
 	my @new_ns = new_ns;
-	for (my $i = 0; @new_ns; $i++) {
+	for (my $i = 0; ; $i++) {
 		my $elem_ns = elem "form input[name='ns$i']";
 		my $elem_ip = elem "form input[name='ip$i']";
-		my $new_ns = shift @new_ns;
-		my $new_ip = shift @new_ns;
-		my $old_ns = elem_attr $elem_ns, 'value';
-		my $old_ip = elem_attr $elem_ip, 'value';
+		my $new_ns = shift @new_ns // '';
+		my $new_ip = shift @new_ns // '';
+		my $old_ns = elem_value $elem_ns;
+		my $old_ip = elem_value $elem_ip;
+		last if not $old_ns and not $new_ns;
 		next if $old_ns eq $new_ns
 		    and $old_ip eq $new_ip;
-		$ns_match = 0;
-		notice "$old_ns $old_ip -> $new_ns $new_ip"
-		    if not_really or $unlocked;
+		notice "$old_ns $old_ip -> $new_ns $new_ip";
 		fill $elem_ns => $new_ns, $elem_ip => $new_ip;
 	}
-	if ($ns_match) {
-		verbose "nameservers match"
-		    if not_really or $unlocked;
-	} elsif (not_really) {
+	if (not_really) {
 		notice "not really!";
-	} elsif ($unlocked) {
+	} else {
 		click "form input[type='submit'][value='Set nameservers']";
 		wait_for_alert_updated;
 	}
+}
 
-	navigate "$home/dnssec";
-	# DS
 
-	last if not_really;
-
-	my $all_match = $priv_match && $reg_match && $ns_match && $ds_match;
-
-	# we needed to make a change but we couldn't, so unlock and re-do
-	if (not $unlocked and not $all_match) {
-		navigate "$home/auth-lock";
-		click "form input[type='submit'][value='unlock']";
-		wait_for_elem { 'xpath' =>
-			'//pre[contains(text(),"Domain unlocked")]'
-		};
-		go_home;
-		next;
+if (not $uk and whois('lock') || 1) {
+	navigate "$home/auth-lock";
+	notice "locking registration";
+	if (not_really) {
+		notice "not really!";
+	} else {
+		click $lock_button;
+		wait_for_elem $unlock_button;
 	}
-
-	if ($unlocked and 'no' ne whois 'lock') {
-		navigate "$home/auth-lock";
-		click "form input[type='submit'][value='lock']";
-		wait_for_elem { 'xpath' =>
-			'//pre[contains(text(),"Domain locked")]'
-		};
-		notice "registry lock enabled";
-		go_home;
-	}
-
-	last;
 }
 
 navigate 'https://www.mythic-beasts.com/user/logout';
-exit;
+exit 0;
