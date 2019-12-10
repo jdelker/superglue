@@ -269,6 +269,7 @@ our @SUPERGLUE_EXPORT = qw{
 	fill
 	pause
 	wait_for
+	wait_for_elem
 };
 
 =item $sg->navigate($url)
@@ -495,6 +496,18 @@ sub wait_for {
 	$self->verbosity(LOG_INFO);
 	$test->();
 	croak "timed out waiting for test to succeed";
+}
+
+=item $sg->wait_for_elem($locator)
+
+Wait for C<$sg-E<gt>has_elem($locator)> to succeed.
+
+=cut
+
+sub wait_for_elem {
+	my $self = shift;
+	my $locator = shift;
+	return $self->wait_for(sub { $self->has_elem($locator) });
 }
 
 =back

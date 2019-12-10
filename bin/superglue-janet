@@ -21,7 +21,7 @@ use POSIX qw(strftime);
 
 use lib "$FindBin::Bin/../lib";
 
-use Superglue qw( :script :restful :webdriver );
+use Superglue qw( :script :webdriver );
 
 # trim table header and footer
 sub trim {
@@ -175,16 +175,12 @@ my @new_ns = new_ns;
 my $num_ns = @new_ns / 2;
 fill '#MainContent_Nameservers_NumberOfNonJanetSecondaries'
     => ''.($num_ns - 1);
-wait_for sub {
-    has_elem '#MainContent_Nameservers_SecName'.($num_ns - 2)
-};
+wait_for_elem '#MainContent_Nameservers_SecName'.($num_ns - 2);
 
 # disable any JANET nameserver options
 
 fill '#MainContent_Nameservers_UseJanetPrimaryNs1' => 'No';
-wait_for sub {
-    has_elem '#MainContent_Nameservers_PrimeNameserverName';
-};
+wait_for_elem '#MainContent_Nameservers_PrimeNameserverName';
 
 for my $i (0..3) {
 	my $id = '#MainContent_Nameservers_JSec_CheckBoxList_'.$i;
