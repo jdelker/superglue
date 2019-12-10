@@ -8,9 +8,8 @@ use lib "$FindBin::Bin/../lib";
 
 use Superglue qw( :script :webdriver );
 
-#navigate 'https://www.mythic-beasts.com/user/logout';
-
-#navigate 'https://www.mythic-beasts.com/user/login';
+navigate 'https://www.mythic-beasts.com/user/logout';
+navigate 'https://www.mythic-beasts.com/user/login';
 
 my $login = '#login-form button[type="submit"]';
 if (has_elem $login) {
@@ -38,6 +37,13 @@ my $status = elem_text 'div.section.top-section :nth-child(3)';
 error "domain is not currently registered"
     unless $status =~ m{status\s+registered}i;
 
+sub wait_for_alert_updated {
+	wait_for_elem 'p.alert';
+	unless (elem_text('p.alert-success') =~ m{updated}) {
+		error elem_text 'p.alert';
+	}
+}
+
 # Although the domain summary page has most of the information we
 # need, the fields are not labelled in a convenient way. For contact
 # and delegation details it is easier to go straight to filling in the
@@ -58,6 +64,8 @@ my $reg_match = 1;
 my $ns_match = 1;
 my $ds_match = 1;
 
+my $uk = zone =~ m{\.uk$};
+
 for (;;) {
 	if (has_elem { 'partial link text' => 'Domain locking' }) {
 		my $lock_state = elem_text { 'xpath' =>
@@ -65,32 +73,39 @@ for (;;) {
 			'/p[contains(text(),"Domain is")]/b'
 		};
 		$unlocked = $lock_state eq 'unlocked';
+		verbose_f "registration is %s", $unlocked ? "unlocked" : "locked";
 	}
 
-	if (has_elem { 'partial link text' => 'Domain privacy' }) {
+	if (not $uk) {
+		error "missing domain privacy link"
+		    unless has_elem { 'partial link text' => 'Domain Privacy' };
 		my $priv_state = elem_text { 'xpath' =>
 			'//h2[text()="Contacts"]/..'.
 			'/p[contains(text(),"Domain privacy is")]/b'
 		};
-		my $priv_want = whois('privacy') ? 'enabled' : 'disabled';
-		if ($priv_state ne $priv_want) {
-			$priv_match = 0;
-			notice "privacy $priv_state -> $priv_want"
+		my $priv_want = whois('privacy') ? 'enable' : 'disabled';
+		my $priv_other = whois('privacy') ? 'disabled' : 'enable';
+		$priv_match = $priv_state eq $priv_want;
+		if ($priv_match) {
+			verbose_f "whois privacy is %s", $priv_state
 			    if not_really or $unlocked;
+		} elsif (not_really or $unlocked) {
+			notice "whois privacy $priv_state -> $priv_want";
 			if (not_really) {
 				notice "not really!";
-			} elsif ($unlocked) {
+			} else {
 				navigate "$home/privacy";
 				$priv_want =~ s/d$//;
 				click "form input[type='submit']".
 				    "[name='$priv_want-privacy']";
+				wait_for_elem "form input[type='submit']".
+				    "[name='$priv_other-privacy']";
 			}
 		}
 	}
 
 	navigate "$home/contacts";
 
-	my $uk = zone =~ m{\.uk$};
 	my @contact = $uk ? qw(registrant) : qw(owner admin billing tech);
 	my @field = $uk ? qw(
 		org name street0 street1 street2
@@ -115,7 +130,7 @@ for (;;) {
 			}
 			next if $old eq $new;
 			$reg_match = 0;
-			notice "$field $old -> $new"
+			notice "$contact $field $old -> $new"
 			    if not_really or $unlocked;
 			if ($uk and $field eq 'org') {
 				warning_f "this must be fixed via Nominet";
@@ -127,11 +142,13 @@ for (;;) {
 		}
 	}
 	if ($reg_match) {
-		verbose "contacts match";
+		verbose "contacts match"
+		    if not_really or $unlocked;
 	} elsif (not_really) {
 		notice "not really!";
 	} elsif ($unlocked) {
 		click "form input[type='submit'][value='Update']";
+		wait_for_alert_updated;
 	}
 
 	navigate "$home/nameservers";
@@ -151,17 +168,19 @@ for (;;) {
 		fill $elem_ns => $new_ns, $elem_ip => $new_ip;
 	}
 	if ($ns_match) {
-		verbose "nameservers match";
+		verbose "nameservers match"
+		    if not_really or $unlocked;
 	} elsif (not_really) {
 		notice "not really!";
 	} elsif ($unlocked) {
 		click "form input[type='submit'][value='Set nameservers']";
+		wait_for_alert_updated;
 	}
 
 	navigate "$home/dnssec";
 	# DS
 
-	exit if not_really;
+	last if not_really;
 
 	my $all_match = $priv_match && $reg_match && $ns_match && $ds_match;
 
@@ -169,6 +188,9 @@ for (;;) {
 	if (not $unlocked and not $all_match) {
 		navigate "$home/auth-lock";
 		click "form input[type='submit'][value='unlock']";
+		wait_for_elem { 'xpath' =>
+			'//pre[contains(text(),"Domain unlocked")]'
+		};
 		go_home;
 		next;
 	}
@@ -176,10 +198,15 @@ for (;;) {
 	if ($unlocked and 'no' ne whois 'lock') {
 		navigate "$home/auth-lock";
 		click "form input[type='submit'][value='lock']";
+		wait_for_elem { 'xpath' =>
+			'//pre[contains(text(),"Domain locked")]'
+		};
+		notice "registry lock enabled";
 		go_home;
 	}
 
-	exit;
+	last;
 }
 
+navigate 'https://www.mythic-beasts.com/user/logout';
 exit;
