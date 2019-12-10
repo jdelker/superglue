@@ -264,6 +264,7 @@ our @SUPERGLUE_EXPORT = qw{
 	elem_prop
 	elem_text
 	elem_selected
+	elem_value
 	clear
 	click
 	fill
@@ -442,6 +443,17 @@ Returns a boolean corresponding to whether a form element is selected.
 
 sub elem_selected {
 	return shift->elem_request(GET => shift, 'selected');
+}
+
+=item $sg->elem_value($locator)
+
+Returns the C<value> property of the element, which is typically a
+field in a form.
+
+=cut
+
+sub elem_value {
+	return shift->elem_prop(shift, 'value');
 }
 
 =item $sg->clear($locator)
