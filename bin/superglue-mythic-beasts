@@ -136,6 +136,11 @@ for (my $i = 0; ; $i++) {
 }
 
 
+# TODO: At the moment the current DS records are not available when
+# the domain is locked, so this will think there aren't any. If the
+# domain actually has DS records, $ds_match will end up false, and we
+# will continue to the update stage...
+
 my $old_ds_tr = '//h2[text()="DS Records"]/../table/tbody/tr';
 sub old_ds_tr {
 	my $tr = shift;
@@ -175,16 +180,23 @@ exit if $locking_match
 
 my $lock_button = "form input[type='submit'][value='lock']";
 my $unlock_button = "form input[type='submit'][value='unlock']";
-unless ($uk) {
+my $need_lock = 0; # TODO DS
+while (not $uk) {
 	navigate "$home/auth-lock";
 	my @elems = elems $unlock_button;
-	notice "unlocking registration" if @elems;
-	if (not_really) {
-		notice "not really!" if @elems;
+	last unless @elems;
+	notice "unlocking registration";
+	# TODO: This is a workaround for the missing DS records when
+	# the domain is locked: we unlock the domain when we would
+	# prefer not to. This can be reverted when the web site is fixed.
+	if (not_really and $ds_match) {
+		notice "not really!";
 	} else {
-		click $elems[0] if @elems;
+		click $elems[0];
 		wait_for_elem $lock_button;
+		$need_lock = 1; # TODO DS
 	}
+	last;
 }
 
 sub privacy_button {
@@ -262,7 +274,15 @@ unless ($ds_match) {
 	navigate "$home/dnssec";
 	my $form = elem { xpath =>
 	    '//h2[contains(text(),"Configure new manual DS key")]/../form'
-	};
+        };
+	# TODO: Workaround for missing DS records: re-read the current
+	# DS records since they might have not have been available
+	# when we first checked. We will fail if we try to re-add an
+	# existing DS record, so the %old_ds list needs to be correct.
+	for my $tr (elems { xpath => $old_ds_tr }) {
+		my $ds = old_ds_tr $tr;
+		$old_ds{$ds->rdstring} = ();
+	}
 	for my $ds (new_ds) {
 		next if exists $old_ds{$ds->rdstring};
 		# append '' to coerce to string
@@ -294,14 +314,15 @@ unless ($ds_match) {
 			wait_for_alert_success;
 		}
 	}
-	exit;
 }
 
 
-if (not $uk and whois('lock') || 1) {
+# TODO: The $need_lock checks can be removed when the web site is
+# fixed to show us the current DS records when the domain is locked.
+if (not $uk and whois('lock') || 1 || $need_lock) {
 	navigate "$home/auth-lock";
 	notice "locking registration";
-	if (not_really) {
+	if (not_really and not $need_lock) {
 		notice "not really!";
 	} else {
 		click $lock_button;
