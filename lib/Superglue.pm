@@ -520,20 +520,25 @@ sub require_glueless {
 
 =item $sg->delegation_matches
 
-Returns true if the old and new delegations are the same. Prints
-informative messages in debug and verbose mode.
+In a scalar context, returns true if the old and new delegations are
+the same.
+
+In a list conext, returns a pair of booleans stating whether the NS
+and DS RRsets match.
+
+Prints informative messages in debug and verbose mode.
 
 =cut
 
 sub delegation_matches {
 	my $self = shift;
-	my $ret = 1;
+	my %ret;
 	for my $rr (qw(NS DS)) {
 		my $get = "get_" . lc $rr;
 		my $old = $self->old_delegation->$get();
 		my $new = $self->new_delegation->$get();
-		my $match = Compare $old, $new;
-		if ($match) {
+		$ret{$rr} = Compare $old, $new;
+		if ($ret{$rr}) {
 			$self->verbose("$rr records match");
 			$self->debug("current $rr records", $old);
 			$self->debug("desired $rr records", $new);
@@ -542,9 +547,9 @@ sub delegation_matches {
 			$self->verbose("current $rr records", $old);
 			$self->verbose("desired $rr records", $new);
 		}
-		$ret &&= $match;
+
 	}
-	return $ret;
+	return wantarray ? @ret{qw{NS DS}} : $ret{NS} && $ret{DS};
 }
 
 =back
