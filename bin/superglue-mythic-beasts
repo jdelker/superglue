@@ -24,6 +24,7 @@ if (has_elem $login) {
 }
 
 my $uk = zone =~ m{\.uk$};
+my $eu = zone =~ m{\.eu$};
 my $home = 'https://ctrlpanel.mythic-beasts.com/customer/domains/'.zone;
 sub go_home {
 	navigate $home;
@@ -39,6 +40,10 @@ go_home;
 my $status = elem_text 'div.section.top-section :nth-child(3)';
 error "domain is not currently registered"
     unless $status =~ m{status\s+registered}i;
+
+my $can_dnssec = has_elem { 'link text' => 'DNS SEC' };
+warning "DNSSEC is not available for this TLD"
+    unless $can_dnssec; # and has_new_ds
 
 
 # Although the domain summary page has most of the information we
@@ -67,9 +72,12 @@ sub fettle_flag {
 	verbose_f "%s %s", $description, $match ? "matches" : "differs";
 	return $match;
 }
+# Unlike DNSSEC, we can't use the presence/absence of the lock button
+# as an indicator that locking is available, because for .eu locking
+# is offered but it doesn't work.
 my $locking_match = 1;
 my $privacy_match = 1;
-unless ($uk) {
+if (not $uk and not $eu) {
 	$locking_match = fettle_flag 'registration lock',
 	    'Domain locking', 'Transfer away', 'Domain is',
 	    whois('lock') || 1 ? "locked" : "unlocked"; # default on
@@ -89,7 +97,7 @@ sub fettle_contacts {
 	navigate "$home/contacts";
 
 	my @contact = $uk ? qw(registrant)
-	    : zone =~ m{\.eu$} ? qw(owner tech)
+	    : $eu ? qw(owner tech)
 	    : qw(owner admin billing tech);
 	my @field = $uk ? qw(
 		org name street0 street1 street2
@@ -161,12 +169,14 @@ sub old_ds_tr {
 		digest => $hash,
 	    );
 }
-navigate "$home/dnssec";
 my %old_ds;
-for my $tr (elems { xpath => $old_ds_tr }) {
-	my $ds = old_ds_tr $tr;
-	old_ds $ds;
-	$old_ds{$ds->rdstring} = ();
+if ($can_dnssec) {
+	navigate "$home/dnssec";
+	for my $tr (elems { xpath => $old_ds_tr }) {
+		my $ds = old_ds_tr $tr;
+		old_ds $ds;
+		$old_ds{$ds->rdstring} = ();
+	}
 }
 
 
@@ -183,7 +193,7 @@ exit if $locking_match
 my $lock_button = "form input[type='submit'][value='lock']";
 my $unlock_button = "form input[type='submit'][value='unlock']";
 my $need_lock = 0; # TODO DS
-while (not $uk) {
+while (not $uk and not $eu) {
 	navigate "$home/auth-lock";
 	my @elems = elems $unlock_button;
 	last unless @elems;
@@ -272,7 +282,7 @@ unless ($ns_match) {
 }
 
 
-unless ($ds_match) {
+if ($can_dnssec and not $ds_match) {
 	navigate "$home/dnssec";
 	my $form = elem { xpath =>
 	    '//h2[contains(text(),"Configure new manual DS key")]/../form'
@@ -321,7 +331,7 @@ unless ($ds_match) {
 
 # TODO: The $need_lock checks can be removed when the web site is
 # fixed to show us the current DS records when the domain is locked.
-if (not $uk and whois('lock') || 1 || $need_lock) {
+if (not $uk and not $eu and whois('lock') || 1 || $need_lock) {
 	navigate "$home/auth-lock";
 	notice "locking registration";
 	if (not_really and not $need_lock) {
