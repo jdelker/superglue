@@ -500,7 +500,8 @@ croaks.
 sub wait_for {
 	my $self = shift;
 	my $test = shift;
-	for (1..300) {
+	my $timeout = 30 + time;
+	while ($timeout > time) {
 		return if $test->();
 		select undef, undef, undef, 0.1;
 	}
