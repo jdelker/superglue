@@ -492,7 +492,7 @@ sub fill {
 Wait for some condition to succeed. The subroutine must return a
 boolean value, which is typically the result of C<$sg-E<gt>has_elem>
 test(s). The subroutine is run every 0.1 seconds until it returns
-true; if it does not do so within 10 seconds then C<$sg-E<gt>wait_for>
+true; if it does not do so within 30 seconds then C<$sg-E<gt>wait_for>
 croaks.
 
 =cut
@@ -500,7 +500,7 @@ croaks.
 sub wait_for {
 	my $self = shift;
 	my $test = shift;
-	for (1..100) {
+	for (1..300) {
 		return if $test->();
 		select undef, undef, undef, 0.1;
 	}
