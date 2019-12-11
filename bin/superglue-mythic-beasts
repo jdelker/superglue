@@ -56,6 +56,7 @@ error "domain is not currently registered"
 # the domain is already unlocked, but we don't bother with that
 # optimization. The second stage is skipped if no changes are needed.
 
+
 sub fettle_flag {
 	my ($description, $link, $heading, $blurb, $want) = @_;
 	error "missing $description link"
@@ -135,19 +136,16 @@ for (my $i = 0; ; $i++) {
 }
 
 
-navigate "$home/dnssec";
-my $ds_rows = elems { 'xpath' =>
-	'//h2[text()="DS Records"]/..'.
-	'/table/tbody/tr'
-};
-for my $tr (@$ds_rows) {
+my $old_ds_tr = '//h2[text()="DS Records"]/../table/tbody/tr';
+sub old_ds_tr {
+	my $tr = shift;
 	my $tag = elem_value sub_elem $tr, "input[name='keytag']";
 	my $algo = elem_value sub_elem $tr,
 	    "select[name='algorithm'] option[selected]";
 	my $dt = elem_value sub_elem $tr,
 	    "select[name='digesttype'] option[selected]";
 	my $hash = elem_value sub_elem $tr, "input[name='digest']";
-	old_ds Net::DNS::RR->new(
+	return Net::DNS::RR->new(
 		name => zone,
 		type => 'DS',
 		keytag => $tag,
@@ -156,10 +154,16 @@ for my $tr (@$ds_rows) {
 		digest => $hash,
 	    );
 }
+navigate "$home/dnssec";
+my %old_ds;
+for my $tr (elems { xpath => $old_ds_tr }) {
+	my $ds = old_ds_tr $tr;
+	old_ds $ds;
+	$old_ds{$ds->rdstring} = ();
+}
 
-my $ns_match;
-my $ds_match;
-$ns_match = $ds_match = delegation_matches;
+
+my ($ns_match,$ds_match) = delegation_matches;
 
 
 exit if $locking_match
@@ -173,12 +177,12 @@ my $lock_button = "form input[type='submit'][value='lock']";
 my $unlock_button = "form input[type='submit'][value='unlock']";
 unless ($uk) {
 	navigate "$home/auth-lock";
-	my $elems = elems $unlock_button;
-	notice "unlocking registration" if @$elems;
+	my @elems = elems $unlock_button;
+	notice "unlocking registration" if @elems;
 	if (not_really) {
-		notice "not really!";
+		notice "not really!" if @elems;
 	} else {
-		click $elems->[0] if @$elems;
+		click $elems[0] if @elems;
 		wait_for_elem $lock_button;
 	}
 }
@@ -199,16 +203,24 @@ if (not $uk and not $privacy_match) {
 		notice "not really!";
 	} else {
 		click privacy_button $new;
-		wait_for_elem privacy_botton $old;
+		wait_for_elem privacy_button $old;
 	}
 }
 
-sub wait_for_alert_updated {
+
+sub wait_for_alert_success {
 	wait_for_elem 'p.alert';
-	unless (elem_text('p.alert-success') =~ m{updated}) {
-		error elem_text 'p.alert';
+	my $msg = elem_text 'p.alert';
+	$msg =~ s{[^!-~]+}{ }g;
+	$msg =~ s{^\s+}{};
+	$msg =~ s{\s+$}{};
+	if (has_elem 'p.alert-success') {
+		verbose $msg;
+	} else {
+		error $msg;
 	}
 }
+
 
 unless ($contacts_match) {
 	fettle_contacts 'noisy';
@@ -216,7 +228,7 @@ unless ($contacts_match) {
 		notice "not really!";
 	} else {
 		click "form input[type='submit'][value='Update']";
-		wait_for_alert_updated;
+		wait_for_alert_success;
 	}
 }
 
@@ -241,8 +253,48 @@ unless ($ns_match) {
 		notice "not really!";
 	} else {
 		click "form input[type='submit'][value='Set nameservers']";
-		wait_for_alert_updated;
+		wait_for_alert_success;
 	}
+}
+
+
+unless ($ds_match) {
+	navigate "$home/dnssec";
+	my $form = elem { xpath =>
+	    '//h2[contains(text(),"Configure new manual DS key")]/../form'
+	};
+	for my $ds (new_ds) {
+		next if exists $old_ds{$ds->rdstring};
+		# append '' to coerce to string
+		fill sub_elem($form, "input[name='keytag']") => ''.$ds->keytag,
+		     sub_elem($form, "input[name='digest']") => $ds->digest;
+		click sub_elem $form, sprintf "select[name='algorithm']".
+		    " option[value='%s']", ''.$ds->algorithm;
+		click sub_elem $form, sprintf "select[name='digesttype']".
+		    " option[value='%s']", ''.$ds->digtype;
+		notice_f "add %s", $ds->plain;
+		if (not_really) {
+			notice "not really!";
+		} else {
+			click sub_elem $form,
+			    "button[type='submit'][value='add']";
+			wait_for_alert_success;
+		}
+	}
+	my $new_ds = new_ds;
+	for my $tr (elems { xpath => $old_ds_tr }) {
+		my $ds = old_ds_tr $tr;
+		next if exists $new_ds->{$ds->rdstring};
+		notice_f "del %s", $ds->plain;
+		if (not_really) {
+			notice "not really!";
+		} else {
+			click sub_elem $tr,
+			    "input[type='submit'][value='delete']";
+			wait_for_alert_success;
+		}
+	}
+	exit;
 }
 
 
@@ -256,6 +308,7 @@ if (not $uk and whois('lock') || 1) {
 		wait_for_elem $unlock_button;
 	}
 }
+
 
 navigate 'https://www.mythic-beasts.com/user/logout';
 exit 0;
