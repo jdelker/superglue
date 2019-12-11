@@ -322,12 +322,12 @@ sub elem {
 
 =item $sg->elems($locator)
 
-Returns a reference to an array of located elements.
+Returns an array of located elements.
 
 =cut
 
 sub elems {
-	return shift->POST('elements', using shift);
+	return @{ shift->POST('elements', using shift) };
 }
 
 =item $sg->has_elem($locator)
@@ -338,8 +338,7 @@ calling C<$sg-E<gt>elems> and checking for a non-empty result.
 =cut
 
 sub has_elem {
-	my $elems = shift->elems(shift);
-	return scalar @$elems;
+	return scalar shift->elems(shift);
 }
 
 =item $sg->elem_request($method, $locator, $action, $body)
@@ -377,12 +376,12 @@ sub sub_elem {
 =item $sg->sub_elems($ancestor, $descendent)
 
 Locate I<$descendent> elements relative to an I<$ancestor>.
-Returns a reference to an array of located elements.
+Returns an array of located elements.
 
 =cut
 
 sub sub_elems {
-	return shift->elem_request(POST => shift, 'elements', using shift);
+	return @{ shift->elem_request(POST => shift, 'elements', using shift) };
 }
 
 =item $sg->click($locator)

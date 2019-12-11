@@ -25,8 +25,7 @@ use Superglue qw( :script :webdriver );
 
 # trim table header and footer
 sub trim {
-	my $rows = shift;
-	return [ splice @$rows, 1, -1 ];
+	return splice @_, 1, -1;
 }
 
 navigate login 'url';
@@ -56,11 +55,11 @@ wait_for sub {
 fill '#MainContent_TicketTypeChoice' => 'Modification';
 click '#MainContent_FilterSubmit';
 
-my $tickets = trim elems '#MainContent_TicketListView tr';
+my @tickets = trim elems '#MainContent_TicketListView tr';
 error_f "cannot modify %s: too many open tickets", zone
-    if @$tickets >= 10;
+    if @tickets >= 10;
 
-verbose_f "found %d open tickets", scalar @$tickets;
+verbose_f "found %d open tickets", scalar @tickets;
 
 # Look for any open tickets for this domain
 # to avoid having multiple modifications in flight.
@@ -85,8 +84,8 @@ click '#MainContent_btnFilter';
 # ucam.ac.uk) so we might have more than one result. The domain name
 # and the link to its information page are in different columns.
 
-my $domains = trim elems '#MainContent_DomainListView tr';
-for my $row (@$domains) {
+my @domains = trim elems '#MainContent_DomainListView tr';
+for my $row (@domains) {
 	next unless zone eq lc elem_text sub_elem $row, 'td:nth-child(4)';
 	click sub_elem $row, 'td:nth-child(2) > a'
 }
@@ -132,9 +131,9 @@ if (has_contact) {
 
 }
 
-my $old_ns = elems '#MainContent_nameServersTab tr';
-shift @$old_ns; # remove header (no footer on this table)
-for my $row (@$old_ns) {
+my @old_ns = elems '#MainContent_nameServersTab tr';
+shift @old_ns; # remove header (no footer on this table)
+for my $row (@old_ns) {
 	my $ns = elem_text sub_elem $row, 'td:nth-last-child(2)';
 	my $ip = elem_text sub_elem $row, 'td:nth-last-child(1)';
 	old_ns $ns, $ip;
@@ -142,7 +141,7 @@ for my $row (@$old_ns) {
 
 my $old_ds = elem_text '#MainContent_DsKeysDisplay';
 for my $old_ds (split /\n/, $old_ds) {
-	old_ds Net::DNS::RR->new($old_ds);
+	old_ds +Net::DNS::RR->new($old_ds);
 }
 
 my $deleg_match = delegation_matches;
@@ -208,19 +207,20 @@ sub schedule {
 	# Something weird is happening here. Filling the "time"
 	# drop-down menu seems to toggle it, rather than setting the
 	# value, so we loop to make sure it has been set properly.
+	# FIXME use click
 	fill $modwhen_id.'Time' => $time
 	    while $time ne elem_text($modwhen_id.'Time option:checked');
 	fill $modwhen_id.'DateCalendar' => $date;
 }
 
-my $times = elems $modwhen_id.'Time option';
+my @times = elems $modwhen_id.'Time option';
 # Assume the times are in order from early to late. Schedule for
 # first thing tomorrow in case we can't find a time later today.
-schedule elem_text($times->[0]),
+schedule elem_text($times[0]),
     strftime "%d/%m/%Y", localtime time + 86400;
 # Override the schedule with a time later today, if we find one.
 my $now = strftime "%H:%M", localtime;
-for my $opt (@$times) {
+for my $opt (@times) {
 	my $time = elem_text $opt;
 	next if $now ge $time;
 	schedule $time, strftime "%d/%m/%Y", localtime;
