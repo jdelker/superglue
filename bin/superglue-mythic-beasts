@@ -123,7 +123,8 @@ sub fettle_contacts {
 			$match = 0;
 			notice "$contact $field $old -> $new" if $noisy;
 			if ($uk and $field eq 'org') {
-				warning_f "this must be fixed via Nominet";
+				warning_f "this must be fixed via Nominet"
+				    if $noisy;
 			} elsif ($field eq 'country' or $field eq 'cc') {
 				click "$elem option[value='$new']";
 			} else {
