@@ -87,7 +87,8 @@ click '#MainContent_btnFilter';
 my @domains = trim elems '#MainContent_DomainListView tr';
 for my $row (@domains) {
 	next unless zone eq lc elem_text sub_elem $row, 'td:nth-child(4)';
-	click sub_elem $row, 'td:nth-child(2) > a'
+	click sub_elem $row, 'td:nth-child(2) > a';
+	last;
 }
 
 error_f "cannot modify %s: not found", zone
