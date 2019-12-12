@@ -31,7 +31,7 @@ sub add_ds {
 		} else {
 			$ds = Net::DNS::RR->new("$zone DS $ds");
 		}
-		$self->{ds}->{$ds->rdstring} = ();
+		$self->{ds}->{$ds->rdstring} = {};
 	}
 }
 
