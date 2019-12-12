@@ -199,21 +199,24 @@ for my $i (0 .. $num_ns - 2) {
 fill '#MainContent_DsKeys_DsKeyTabContainer_DsPasteTab_DsKeyText',
     => join '', map "$_\n", map $_->plain, new_ds;
 
-my $modwhen_id = '#MainContent_ModificationDate_Modification';
+my $modwhen_id = 'MainContent_ModificationDate_Modification';
+my $modwhen_time = "${modwhen_id}Time";
+my $modwhen_date = "${modwhen_id}DateCalendar";
+my $modwhen_label = "${modwhen_id}TimeLabel";
 
 sub schedule {
 	my $time = shift;
 	my $date = shift;
-	# Something weird is happening here. Filling the "time"
-	# drop-down menu seems to toggle it, rather than setting the
-	# value, so we loop to make sure it has been set properly.
-	# FIXME use click
-	fill $modwhen_id.'Time' => $time
-	    while $time ne elem_text($modwhen_id.'Time option:checked');
-	fill $modwhen_id.'DateCalendar' => $date;
+	fill "#$modwhen_date" => $date;
+	# Filling the calendar brings up a date picker which
+	# covers the time selector, so we click a label that
+	# isn't obscured to get the popup out of the way.
+	click "#$modwhen_label";
+	click { xpath => "//select[\@id='$modwhen_time']"
+			."/option[text()='$time']" };
 }
 
-my @times = elems $modwhen_id.'Time option';
+my @times = elems "#$modwhen_time option";
 # Assume the times are in order from early to late. Schedule for
 # first thing tomorrow in case we can't find a time later today.
 schedule elem_text($times[0]),
@@ -228,8 +231,8 @@ for my $opt (@times) {
 }
 
 notice_f "modification scheduled for %s %s",
-    elem_value($modwhen_id.'DateCalendar'),
-    elem_text($modwhen_id.'Time option:checked');
+    elem_value("#$modwhen_date"),
+    elem_text("#$modwhen_time option:checked");
 
 if (not_really) {
 	notice "not really!";
