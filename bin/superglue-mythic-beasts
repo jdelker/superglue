@@ -315,18 +315,25 @@ if ($can_dnssec and not $ds_match) {
 		}
 	}
 	my $new_ds = new_ds;
-	for my $tr (elems { xpath => $old_ds_tr }) {
-		my $ds = old_ds_tr $tr;
-		next if exists $new_ds->{$ds->rdstring};
-		notice_f "del %s", $ds->plain;
-		if (not_really) {
-			notice "not really!";
-		} else {
-			click sub_elem $tr,
-			    "input[type='submit'][value='delete']";
-			wait_for_alert_success;
+	my $changed = 0;
+	do {
+		# The table changes each time we delete a DS record,
+		# so we need to restart the scan when we make a change.
+		for my $tr (elems { xpath => $old_ds_tr }) {
+			my $ds = old_ds_tr $tr;
+			next if exists $new_ds->{$ds->rdstring};
+			notice_f "del %s", $ds->plain;
+			if (not_really) {
+				notice "not really!";
+			} else {
+				click sub_elem $tr,
+				    "input[type='submit'][value='delete']";
+				wait_for_alert_success;
+				$changed = 1;
+				last;
+			}
 		}
-	}
+	} while ($changed);
 }
 
 
