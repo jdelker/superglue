@@ -17,6 +17,7 @@ use warnings;
 use Carp;
 use IPC::System::Simple qw(capturex);
 use Net::DNS;
+use Net::DNS::SEC;
 use Net::DNS::ZoneFile;
 
 our @SUPERGLUE_EXPORT = ();
@@ -24,14 +25,30 @@ our @SUPERGLUE_EXPORT = ();
 sub add_ds {
 	my $self = shift;
 	my $zone = $self->{zone};
+	my $sha1 = 1;
+	my $zsk = 1;
 	for my $ds (@_) {
-		if (ref $ds) {
-			croak "not a DS record: $ds\n"
-			    unless $ds->type eq 'DS';
-		} else {
+		$sha1 = 0 if ref $ds
+		    and $ds->type =~ m{^C?DS$}
+		    and $ds->digtype != 1;
+		$zsk = 0 if ref $ds
+		    and $ds->type =~ m{^C?DNSKEY$}
+		    and $ds->sep;
+	}
+	for my $ds (@_) {
+		if (not ref $ds) {
 			$ds = Net::DNS::RR->new("$zone DS $ds");
+		} elsif ($ds->type eq 'CDS') {
+			$ds = Net::DNS::RR->new("$zone DS ".$ds->rdstring);
+		} elsif ($ds->type =~ m{^C?DNSKEY$}) {
+			next if $ds->revoke;
+			next unless $ds->sep or $zsk;
+			$ds = Net::DNS::RR::DS->create($ds, digtype => 2);
+		} elsif ($ds->type ne 'DS') {
+			croak "not a DS record: $ds\n";
 		}
-		$self->{ds}->{$ds->rdstring} = {};
+		$self->{ds}->{$ds->rdstring} = {}
+		    if $sha1 or $ds->digtype != 1;
 	}
 }
 
@@ -81,7 +98,7 @@ sub new {
 	my $zone = $self->{zone};
 	return $self unless $file;
 	my $zonefile = Net::DNS::ZoneFile->new($file,$zone);
-	my (@ns,@ds,$dnssec);
+	my (@ns,$dnssec);
 	while (my $rr = $zonefile->read) {
 		if ($rr->owner eq $zone and
 		    $rr->type eq 'NS') {
@@ -93,19 +110,18 @@ sub new {
 			    if exists $self->{ns}->{$rr->owner};
 		}
 		if ($rr->owner eq $zone and
-		    $rr->type eq 'DS') {
-			push @ds, $rr;
-		}
-		if ($rr->owner eq $zone and
-		    $rr->type =~ m{^(CDS|DNSKEY|CDNSKEY)$}) {
-			$dnssec = 1;
+		    $rr->type =~ m{^(CDS|CDNSKEY|DS|DNSKEY)$}) {
+			push @{ $dnssec->{$rr->type} }, $rr;
 		}
 	}
-	# child records override parent
-	@ds = map Net::DNS::RR->new($_),
-	    capturex 'dnssec-dsfromkey', '-f', $file, $zone
-	    if $dnssec;
-	$self->add_ds(@ds);
+	# set DS records using the first of these types
+	# listed in order of preference
+	for my $type (qw(CDS CDNSKEY DS DNSKEY)) {
+		my $ds = $dnssec->{$type} // [];
+		next unless @$ds;
+		$self->add_ds(@$ds);
+		last;
+	}
 	return $self;
 }
 
