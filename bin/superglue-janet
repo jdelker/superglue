@@ -141,8 +141,10 @@ for my $row (@old_ns) {
 }
 
 my $old_ds = elem_text '#MainContent_DsKeysDisplay';
-for my $old_ds (split /\n/, $old_ds) {
-	old_ds +Net::DNS::RR->new($old_ds);
+unless ($old_ds =~ m{no DS key}i) {
+	for my $old_ds (split /\n/, $old_ds) {
+		old_ds +Net::DNS::RR->new($old_ds);
+	}
 }
 
 my $deleg_match = delegation_matches;
