@@ -10,6 +10,8 @@ use lib "$FindBin::Bin/../lib";
 
 use Superglue qw( :script :webdriver );
 
+login_check qw(ident password);
+
 navigate 'https://www.mythic-beasts.com/user/logout';
 navigate 'https://www.mythic-beasts.com/user/login';
 

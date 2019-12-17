@@ -28,6 +28,8 @@ sub trim {
 	return splice @_, 1, -1;
 }
 
+login_check qw(url username password);
+
 navigate login 'url';
 
 my $login = '#MainContent_Login1_LoginButton';
