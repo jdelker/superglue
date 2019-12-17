@@ -178,7 +178,9 @@ sub import {
 			};
 		}
 	}
-	$script_self = Superglue::getopt(@module);
+	my $client = ($FindBin::Script =~ m{(?:^|/)superglue-([a-z0-9-]+)$})
+	    ? $1 : undef;
+	$script_self = Superglue::getopt($client, @module);
 }
 
 =head2 Command-line parser
@@ -225,12 +227,15 @@ sub usage {
 	exit 1;
 }
 
-=item Superglue::getopt(@module)
+=item Superglue::getopt($client, @module)
 
 Parse C<@ARGV>, construct and return a Superglue object. If the
 command line requires help, short usage messages are printed by
 C<Superglue::usage>; long help messages (the script's embedded POD)
 are printed using L<Pod::Usage>.
+
+The C<$client> name is used to check consistency of the C<superglue>
+field in the login credentials. It can be C<undef> to skip this check.
 
 Each optional module can extend the command line options by defining a
 C<@SUPERGLUE_GETOPT> variable containing a L<Getopt::Long>
@@ -242,6 +247,7 @@ The documentation for the extra options is in L<superglue(1)>.
 =cut
 
 sub getopt {
+	my $client = shift;
 	my @opt = qw{
 		contact|C=s
 		debug|d
@@ -266,13 +272,15 @@ sub getopt {
 
 	# check that optional modules will work after construction
 	$opt{$_} = 1 for @_;
+	# for the login credentials safety check
+	$opt{client} = $client if $client;
 
 	my $sg = eval { Superglue->new(%opt) };
 	return $sg if $sg;
 
-	$@ =~ s{ at \S+ line [0-9.]+$}{};
+	$@ =~ s{ at \S+ line [0-9.]+\s*$}{};
 	print STDERR "$FindBin::Script: $@\n";
-	usage @_;
+	exit 1;
 }
 
 =head1 ATTRIBUTES
@@ -281,6 +289,20 @@ The following options can be passed to Superglue's C<new> method. Many
 of them also have accessor methods
 
 =over
+
+=item client => $name
+
+(optional)
+
+The client C<$name> must match the C<superglue> field in the login
+credentials. This protects against exposing secrets to the wrong
+registration provider.
+
+=cut
+
+has client => (
+	is => 'ro',
+    );
 
 =item contact => $filename
 
@@ -340,7 +362,8 @@ has old_delegation => (
 (required)
 
 The C<$filename> is a YAML file containing login credentials with
-encrypted secrets. See L<ReGPG::Login> for details of the file format.
+encrypted secrets. See L<ReGPG::Login> for details of the file format,
+and L<superglue(1)> for information about the C<superglue> field.
 
 =cut
 
@@ -418,6 +441,13 @@ around BUILDARGS => sub {
 	$args{login} = ReGPG::Login->new(
 		filename => $args{login},
 	    ) if exists $args{login} and not ref $args{login};
+
+	if ($args{client}) {
+		my $yml = $args{login}{filename} // 'login';
+		croak "$yml: expected field superglue: $args{client}"
+		    unless defined $args{login}{superglue}
+		    and $args{login}{superglue} eq $args{client};
+	}
 
 	# Convert boolean `verbose` and `debug` settings
 	# into a `verbosity` level.
