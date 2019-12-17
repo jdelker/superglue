@@ -70,8 +70,13 @@ fill '#MainContent_TicketTypeChoice' => '',
     '#MainContent_DomainFilterInput' => zone;
 click '#MainContent_FilterSubmit';
 
-error_f "cannot modify %s: ticket already open", zone
-    if has_elem '#MainContent_TicketListView_CurrentPageLabel';
+# During bulk updates, it's more convenient to skip domains without
+# raising an error if a domain's update is already in progress.
+
+if (has_elem '#MainContent_TicketListView_CurrentPageLabel') {
+	warning_f "cannot modify %s: ticket already open", zone;
+	exit 0;
+}
 
 # Find the domain's details page.
 
