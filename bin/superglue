@@ -6,11 +6,7 @@ superglue - update domain name registrations
 
 =head1 SYNOPSIS
 
-superglue-janet [options]
-
-superglue-mythic-beasts [options]
-
-superglue-ripe [options]
+superglue [options]
 
 =head2 Superglue options
 
@@ -38,30 +34,91 @@ superglue-ripe [options]
 Superglue is a collection of scripts for updating domain name
 registration details.
 
+This manual describes the features of Superglue that are common to all
+the scripts. The manuals for each script describes the details that
+are specific to that script:
+
+=over
+
+=item B<superglue-janet>
+
+=item B<superglue-mythic-beasts>
+
+=item B<superglue-ripe>
+
+=back
+
+The B<superglue> program is a wrapper that invokes the right Superglue
+script as specified by the C<--login> option. See under L</"Login
+credentials"> below.
+
+The L<Superglue(3pm)> library has documentation on writing new
+Superglue scripts.
+
+=head2 Login credentials
+
+Superglue uses L<ReGPG::Login> to read login credentials.
+
+The C<--login $filename> is in L<YAML> format and contains non-secret
+information such as a URL, a username, commentary, etc.
+
+There should be a C<superglue:> item which names the Superglue script
+that can use these credentials. It is used by the B<superglue> program
+to invoke the right script, and when a Superglue script is invoked
+directly it is used to ensure that secrets are not accidentally leaked
+to third parties.
+
+Encrypted secrets are referred to under a nested C<gpg_d:> item. Each
+C<gpg_d> sub-item refers to a gpg-encrypted file containing a bare
+secret, which is decrypted as required. See L<ReGPG::Login> for details.
+
+For example, if there were a hypothetical C<superglue-wombat> script,
+you would invoke it with the command C<superglue --login wombat.yml
+...>, where the file C<wombat.yml> contains something like:
+
+	# our main registrar account with Wombat Domains, Inc.
+	---
+	superglue: wombat
+	url: https://wombat.example/login
+	username: wizard
+	gpg_d:
+	  password: wombat.asc
+
 =cut
 
 use strictures 2;
 use warnings;
 
 use Pod::Usage;
+use YAML;
 
-if (grep $_ eq '--help', @ARGV) {
-	pod2usage -exit => 0, -verbose => 2;
-} else {
-	print <<USAGE;
+my $login;
+for my $arg (@ARGV) {
+	if ($login) {
+		my $yml = YAML::LoadFile $arg;
+		die "$arg: missing field 'superglue'\n"
+		    unless $yml->{superglue};
+		my $script = "$0-".$yml->{superglue};
+		exec $script, @ARGV;
+		exit 1;
+	} elsif ($arg eq '--login') {
+		$login = 1;
+	} elsif ($arg eq '--help') {
+		pod2usage -exit => 0, -verbose => 2;
+	}
+}
+
+print STDERR <<USAGE;
 Name:
-    superglue - update domain registrations
+  Superglue - update domain name registrations
 
 Usage:
-    superglue-janet [options]
-
-    superglue-mythic-beasts [options]
-
-    superglue-ripe [options]
+  superglue-janet <...>
+  superglue-mythic-beasts <...>
+  superglue-ripe <...>
 
 USAGE
-	exit 1;
-}
+exit 1;
 
 =head1 AUTHOR
 
@@ -71,7 +128,13 @@ L<https://opensource.org/licenses/0BSD>
 
 =head1 SEE ALSO
 
-L<superglue(1)>, L<ReGPG::Login>, L<Superglue(3pm)>,
+L<superglue-janet(1)>
+
+L<superglue-mythic-beasts(1)>
+
+L<superglue-ripe(1)>
+
+L<ReGPG::Login>, L<Superglue(3pm)>,
 L<Superglue::Contact>, L<Superglue::Delegation>,
 L<Superglue::Restful(3pm)>, L<Superglue::WebDriver>
 
