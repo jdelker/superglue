@@ -184,11 +184,14 @@ if ($can_dnssec) {
 my ($ns_match,$ds_match) = delegation_matches;
 
 
-exit if $locking_match
-    and $privacy_match
-    and $contacts_match
-    and $ns_match
-    and $ds_match;
+if ($locking_match and
+    $privacy_match and
+    $contacts_match and
+    $ns_match and
+    $ds_match) {
+	navigate 'https://www.mythic-beasts.com/user/logout';
+	exit 0;
+}
 
 
 my $lock_button = "form input[type='submit'][value='lock']";
