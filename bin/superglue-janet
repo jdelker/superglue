@@ -201,8 +201,12 @@ for my $i (0 .. $num_ns - 2) {
 	    => shift @new_ns;
 }
 
-fill '#MainContent_DsKeys_DsKeyTabContainer_DsPasteTab_DsKeyText',
-    => join '', map "$_\n", map $_->plain, new_ds;
+if (zone =~ m{\.arpa$}) {
+	warning "DS records not supported for JANET reverse DNS";
+} else {
+	fill '#MainContent_DsKeys_DsKeyTabContainer_DsPasteTab_DsKeyText',
+	    => join '', map "$_\n", map $_->plain, new_ds;
+}
 
 my $modwhen_id = 'MainContent_ModificationDate_Modification';
 my $modwhen_time = "${modwhen_id}Time";
