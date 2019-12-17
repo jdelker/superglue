@@ -318,8 +318,9 @@ if ($can_dnssec and not $ds_match) {
 		}
 	}
 	my $new_ds = new_ds;
-	my $changed = 0;
-	do {
+	my $changed = 1;
+	while ($changed) {
+		$changed = 0;
 		# The table changes each time we delete a DS record,
 		# so we need to restart the scan when we make a change.
 		for my $tr (elems { xpath => $old_ds_tr }) {
@@ -336,7 +337,7 @@ if ($can_dnssec and not $ds_match) {
 				last;
 			}
 		}
-	} while ($changed);
+	}
 }
 
 
