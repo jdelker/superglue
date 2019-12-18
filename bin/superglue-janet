@@ -82,8 +82,10 @@ if (has_elem '#MainContent_TicketListView_CurrentPageLabel') {
 
 click '#commonActionsMenuLogin_ListDomains';
 
-fill '#MainContent_tbDomainNames' => zone,
-    '#MainContent_ShowReverseDelegatedDomains' => 'selected';
+fill '#MainContent_tbDomainNames' => zone;
+
+my $show_reverse = elem '#MainContent_ShowReverseDelegatedDomains';
+click $show_reverse unless elem_selected $show_reverse;
 
 click '#MainContent_btnFilter';
 
