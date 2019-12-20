@@ -75,6 +75,7 @@ click '#MainContent_FilterSubmit';
 
 if (has_elem '#MainContent_TicketListView_CurrentPageLabel') {
 	warning_f "cannot modify %s: ticket already open", zone;
+	click '#commonActionsMenuLogin_menuLogout';
 	exit 0;
 }
 
@@ -158,7 +159,10 @@ unless ($old_ds =~ m{no DS key}i) {
 
 my $deleg_match = delegation_matches;
 
-exit if $deleg_match and $reg_match;
+if ($deleg_match and $reg_match) {
+	click '#commonActionsMenuLogin_menuLogout';
+	exit 0;
+}
 
 click '#MainContent_ModifyDomainButton';
 
@@ -263,4 +267,4 @@ if (not_really) {
 }
 
 click '#commonActionsMenuLogin_menuLogout';
-exit;
+exit 0;
