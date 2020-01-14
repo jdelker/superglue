@@ -62,6 +62,11 @@ sub get_ds {
 	    sort keys %$ds;
 }
 
+sub clear_ds {
+	my $self = shift;
+	undef $self->{ds};
+}
+
 sub add_ns {
 	my $self = shift;
 	my $sub = '.'.$_[0];
@@ -89,6 +94,11 @@ sub get_ns {
 		}
 	}
 	return @ns;
+}
+
+sub clear_ns {
+	my $self = shift;
+	undef $self->{ns};
 }
 
 sub new {
