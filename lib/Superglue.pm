@@ -488,8 +488,10 @@ our @SUPERGLUE_EXPORT = qw(
 	has_contact
 	login
 	login_check
+	old_delegation
 	old_ds
 	old_ns
+	new_delegation
 	new_ds
 	new_ns
 	not_really
