@@ -58,8 +58,10 @@ fill '#MainContent_TicketTypeChoice' => 'Modification';
 click '#MainContent_FilterSubmit';
 
 my @tickets = trim elems '#MainContent_TicketListView tr';
-error_f "cannot modify %s: too many open tickets", zone
-    if @tickets >= 10;
+if (@tickets >= 10) {
+	click '#commonActionsMenuLogin_menuLogout';
+	error_f "cannot modify %s: too many open tickets", zone;
+}
 
 verbose_f "found %d open tickets", scalar @tickets;
 
@@ -74,8 +76,8 @@ click '#MainContent_FilterSubmit';
 # raising an error if a domain's update is already in progress.
 
 if (has_elem '#MainContent_TicketListView_CurrentPageLabel') {
-	warning_f "cannot modify %s: ticket already open", zone;
 	click '#commonActionsMenuLogin_menuLogout';
+	warning_f "cannot modify %s: ticket already open", zone;
 	exit 0;
 }
 
@@ -101,9 +103,11 @@ for my $row (@domains) {
 	last;
 }
 
-error_f "cannot modify %s: not found", zone
-    unless has_elem '#MainContent_DomainName'
-    and zone eq lc elem_text '#MainContent_DomainName';
+unless (has_elem '#MainContent_DomainName' and
+	    zone eq lc elem_text '#MainContent_DomainName') {
+	click '#commonActionsMenuLogin_menuLogout';
+	error_f "cannot modify %s: not found", zone;
+}
 
 # Check the registrant details match.
 
@@ -262,6 +266,7 @@ if (not_really) {
 		notice elem_text '#MainContent_SubmissionText';
 	} else {
 		notice elem_text 'body';
+		click '#commonActionsMenuLogin_menuLogout';
 		error "Unexpected response after submbitting modification";
 	}
 }
