@@ -432,11 +432,14 @@ around BUILDARGS => sub {
 	$args{contact} = Superglue::Contact->new($args{contact})
 	    if exists $args{contact} and not ref $args{contact};
 
+	# The zone name is required but this hasn't been checked yet;
+	# if it's missing, just skip the delegation and fail later.
+
 	my $delegation = delete $args{delegation};
 	$args{new_delegation} = Superglue::Delegation->new(
 		zone => $args{zone},
 		file => $delegation,
-	    ) if $delegation;
+	    ) if $delegation and $args{zone};
 
 	$args{login} = ReGPG::Login->new(
 		filename => $args{login},
