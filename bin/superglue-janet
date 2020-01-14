@@ -30,6 +30,46 @@ sub trim {
 
 login_check qw(url username password);
 
+# do we want JANET secondaries?
+
+my $janet_ns_re = qr{ns([1234])\.ja\.net};
+
+my @new_ns = new_ns;
+my @janet_ns;
+my $need_primary;
+
+for (my $i = 0; $i < @new_ns; ) {
+	if ($new_ns[$i] =~ m{^$janet_ns_re$}) {
+		$janet_ns[$1] = 1;
+		verbose "JANET secondary $new_ns[$i]";
+		$need_primary = 1;
+		splice @new_ns, $i, 2;
+	} else {
+		$i += 2;
+	}
+}
+
+if ($need_primary) {
+	login_check qw(primary_name primary_addr);
+	for (my $i = 0; $i < @new_ns; $i += 2) {
+		if ($new_ns[$i] eq login 'primary_name') {
+			# swap primary to first position
+			$new_ns[$i] = $new_ns[0];
+			$new_ns[0] = login 'primary_name';
+			$new_ns[1] = login 'primary_addr';
+			verbose "with primary $new_ns[0]";
+			undef $need_primary;
+			last;
+		}
+	}
+}
+
+if ($need_primary) {
+	error "could not find primary server for JANET secondaries";
+}
+
+# OK now we can get started...
+
 navigate login 'url';
 
 my $login = '#MainContent_Login1_LoginButton';
@@ -161,6 +201,11 @@ unless ($old_ds =~ m{no DS key}i) {
 	}
 }
 
+if (zone =~ m{\.arpa$}) {
+	warning "DS records not supported for JANET reverse DNS";
+	new_delegation()->clear_ds;
+}
+
 my $deleg_match = delegation_matches;
 
 if ($deleg_match and $reg_match) {
@@ -185,23 +230,42 @@ if (has_contact) {
 	}
 }
 
-# ensure there are enough name server form elements
-
-my @new_ns = new_ns;
-my $num_ns = @new_ns / 2;
-fill '#MainContent_Nameservers_NumberOfNonJanetSecondaries'
-    => ''.($num_ns - 1);
-wait_for_elem '#MainContent_Nameservers_SecName'.($num_ns - 2);
-
-# disable any JANET nameserver options
+# disable JANET primary nameserver
 
 fill '#MainContent_Nameservers_UseJanetPrimaryNs1' => 'No';
 wait_for_elem '#MainContent_Nameservers_PrimeNameserverName';
 
+# enable JANET secondaries - note the checkbox numbering
+# does not match the nameserver numbering
+
 for my $i (0..3) {
 	my $id = '#MainContent_Nameservers_JSec_CheckBoxList_'.$i;
-	click $id if elem_selected $id;
+	my $blurb = elem_text "$id+label";
+	error "unexpected JANET secondary server $blurb"
+	    unless $blurb =~ m{^^\s*$janet_ns_re\s+};
+	my $selected = elem_selected $id;
+	if ($janet_ns[$1]) {
+		unless ($selected) {
+			notice "enable JANET secondary $blurb";
+			click $id;
+		}
+	} else {
+		if ($selected) {
+			notice "disable JANET secondary $blurb";
+			click $id;
+		}
+	}
 }
+
+# ensure there are the right number of name server form elements
+
+my $num_ns = @new_ns / 2;
+fill '#MainContent_Nameservers_NumberOfNonJanetSecondaries'
+    => ''.($num_ns - 1);
+wait_for sub {
+    not has_elem '#MainContent_Nameservers_SecName'.($num_ns - 1)
+    and has_elem '#MainContent_Nameservers_SecName'.($num_ns - 2)
+};
 
 # now we can fill the nameserver fields
 
@@ -216,12 +280,8 @@ for my $i (0 .. $num_ns - 2) {
 	    => shift @new_ns;
 }
 
-if (zone =~ m{\.arpa$}) {
-	warning "DS records not supported for JANET reverse DNS";
-} else {
-	fill '#MainContent_DsKeys_DsKeyTabContainer_DsPasteTab_DsKeyText',
-	    => join '', map "$_\n", map $_->plain, new_ds;
-}
+fill '#MainContent_DsKeys_DsKeyTabContainer_DsPasteTab_DsKeyText',
+    => join '', map "$_\n", map $_->plain, new_ds;
 
 my $modwhen_id = 'MainContent_ModificationDate_Modification';
 my $modwhen_time = "${modwhen_id}Time";
