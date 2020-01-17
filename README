@@ -8,19 +8,17 @@ parent zone so that it is consistent with the contents of your child
 zone.
 
 The name comes from superordinate + glue, though of course superglue
-updates NS and DS records as well.
+updates NS and DS records and whois contact details as well.
 
 Superglue has a separate program for talking to each API. All the
 programs work in a consistent manner. Currently superglue includes
 clients for:
 
-	Gandi
 	JANET (forward and reverse DNS)
+	Mythic Beasts (forward)
 	RIPE (reverse DNS)
 
-Superglue just deals with DNS delegations. It does not handle other
-aspects of domain registration, such as renewals or updating contact
-details.
+Superglue does not handle domain registration, renewals, or transfers.
 
 
 Installation
@@ -29,89 +27,22 @@ Installation
 You can run superglue from a git checkout. (There is not yet a way to
 install superglue in a standard location.)
 
-Run `make` to do the build and setup tasks. This downloads a few Perl
-modules and a copy of CasperJS.
+Superglue works with ReGPG for soring encrypted API credentials.
 
-For superglue-janet you will also need PhantomJS 1.9. The version that
-comes with Ubuntu 14.04 is suitable.
+Extra perl dependencies:
 
+  * Data::Compare
+  * File::Slurp
+  * IPC::System::Simple
+  * JSON
+  * Moo
+  * Net::DNS
+  * Net::DNS::SEC
+  * Test::Exception
+  * Test::TempDir::Tiny
+  * URI
+  * YAML
+  * libwww-perl
 
-Input format
-------------
-
-Every superglue program reads delegation records in a subset of
-standard RFC 1035 master file format. TTLs are ignored; `$` directives,
-`\` escapes, "strings", and `()` continuations are not supported.
-
-The input can contain NS records, DNSKEY records, or both. The owner
-name of these records must match the zone. The default owner and
-`$ORIGIN` are set to the zone name so you can abbreviate the input
-using omitted or unqualified domain names in the standard way.
-
-If the NS RRset or DNSKEY RRset are missing, that part of the
-delegation is left alone, so it isn't possible to use superglue to
-delete a delegation or make a zone insecure.
-
-If the NS record targets include hostnames at or below the zone name
-then glue A and/or AAAA records are required.
-
-
-Login credentials
------------------
-
-Every superglue program gets its login credentials from a file in a
-standard format.
-
-Blank lines or comment lines starting with a `#` are ignored.
-Other lines have the form `<keyword><space><value>`.
-
-Different superglue programs use different keywords depending on the
-requirements of the API they use. Most of them need `user` and `pass`
-credentials.
-
-
-deleget
--------
-
-The `deleget` utility queries a child zone to produce delegation records
-that can be passed to `superglue` to update the delegation in the parent
-zone. This is useful if your DNS provisioning system can't emit the
-delegation records itself.
-
-
-superglue
----------
-
-The umbrella `superglue` program works out how a domain was registered
-and therefore which sub-program should be used to update its delegation.
-(Not yet written.)
-
-
-superglue-gandi
----------------
-
-Gandi has an XML-RPC API for controlling all their services.
-
-
-superglue-janet
----------------
-
-JANET do not provide an API for updating domain delegations, only a
-JavaScript-heavy web site <https://naming.ja.net/dns/>. The
-`superglue-janet` program uses PhantomJS and CasperJS to drive the web
-site using mainly its HTML id=... attributes. We hope these will be
-reasonably stable!
-
-
-superglue-ripe
----------------
-
-You can update the RIPE database by sending whois objects via email,
-by "syncupdates" https POST, or using their REST API in XML or JSON
-style. This uses the RIPE REST JSON API.
-
-The syncupdates interface is nice and simple, but there isn't a
-corresponding authenticated query API - RIPE whois only offers
-insecure connections. The REST APIs both have an ugly way of
-representing object attributes, like name=nserver value=ns.example.com
-instead of nserver=ns.example.com. But apart from that they are OK.
+For WebDriver-based scripts (JANET and Mythic Beasts), you also need
+Firefox and geckodriver.
