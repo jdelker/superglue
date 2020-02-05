@@ -154,7 +154,7 @@ for (my $i = 0; ; $i++) {
 # domain actually has DS records, $ds_match will end up false, and we
 # will continue to the update stage...
 
-my $old_ds_tr = '//h2[text()="DS Records"]/../table/tbody/tr';
+my $old_ds_tr = '//h2[text()="DS Records"]/../form/table/tbody/tr';
 sub old_ds_tr {
 	my $tr = shift;
 	my $tag = elem_value sub_elem $tr, "input[name='keytag']";
